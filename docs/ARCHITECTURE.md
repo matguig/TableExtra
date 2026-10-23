@@ -13,7 +13,8 @@ Sources/
   MTPUIKit/            shared UI: WorkspaceContext protocol, DataGridView (AppKit grid), ResultTableView,
                        CodeView + SQLHighlighter, colors, formatting, file panels,
                        DesignSystem.swift (DS tokens, Tag, Card, PaneHeader, ToolStrip/ToolButton, StatusBar, EmptyState, Banner, KeyCap)
-  FeatureInsights/     PostgreSQL insights dashboard, process list, EXPLAIN visualiser
+  FeatureInsights/     PostgreSQL insights dashboard, process list, EXPLAIN visualiser,
+                       AWS RDS dashboard (AWS SDK for Swift: RDS, CloudWatch, Performance Insights, STS)
   FeatureSchemaTools/  schema diff + migration SQL, Kysely/TypeScript/Zod codegen, ER diagram
   FeatureDataTransfer/ export (CSV/TSV/JSON/SQL/Markdown), CSV import, pg_dump backup/restore, TablePlus import UI
   FeatureAI/           Claude assistant (via the local `claude` CLI), MCP settings
@@ -28,7 +29,9 @@ Rules:
 - Every DB access goes through `DBClient` (never touch a driver from the main thread).
 - Writes coming from the UI call `WorkspaceContext.confirmWrite` first (safety levels, Touch ID, read-only).
 - Secrets only in the Keychain (service `fr.koa-dev.TableExtra`).
-- No external processes for core features: the SSH tunnel runs in-process (`SSHTunnel`), never `/usr/bin/ssh`.
+- No external processes for core features: the SSH tunnel runs in-process (`SSHTunnel`), never `/usr/bin/ssh`, and AWS goes
+  through the AWS SDK (`AWSRDSAPI`, read-only operations only), never the `aws` CLI.
+- ~/.aws is read only after the user picks it (`AWSConfigFolder`, a security-scoped bookmark in the data folder).
 - SSH host keys: ~/.ssh/known_hosts when readable, otherwise trust on first use in `known_hosts.json`; a changed key is refused.
 - Data lives in `~/Library/Application Support/TableExtra` (override with `TABLEEXTRA_HOME`).
 

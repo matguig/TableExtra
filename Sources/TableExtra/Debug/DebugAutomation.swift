@@ -1,4 +1,5 @@
 import AppKit
+import FeatureInsights
 import MTPCore
 import MTPUIKit
 
@@ -64,6 +65,12 @@ final class DebugAutomation {
             workspace?.overlay = arg == "palette" ? .commandPalette : .openAnything
         case "editconnection":
             workspace?.sheet = .editConnection
+        case "scroll":
+            // scroll:<fraction 0…1> of the largest scroll view in the key window.
+            scroll(to: Double(arg) ?? 1)
+        case "awsgrant":
+            // Same as picking the folder in the open panel.
+            AWSConfigFolder.grant(URL(fileURLWithPath: (arg as NSString).expandingTildeInPath, isDirectory: true))
         case "formscroll":
             NotificationCenter.default.post(name: .mtpConnectionFormScroll, object: arg)
         case "dismiss":
@@ -144,6 +151,17 @@ final class DebugAutomation {
     }
 
     /// Renders the frontmost window (including sheets) without needing screen-recording permission.
+    private func scroll(to fraction: Double) {
+        guard let root = (NSApp.keyWindow ?? NSApp.orderedWindows.first)?.contentView else { return }
+        func scrollViews(_ v: NSView) -> [NSScrollView] { (v as? NSScrollView).map { [$0] } ?? [] + v.subviews.flatMap(scrollViews) }
+        guard let sv = scrollViews(root).max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }),
+              let doc = sv.documentView else { return }
+        let range = max(0, doc.frame.height - sv.contentView.bounds.height)
+        let y = doc.isFlipped ? range * fraction : range * (1 - fraction)
+        sv.contentView.scroll(to: NSPoint(x: 0, y: y))
+        sv.reflectScrolledClipView(sv.contentView)
+    }
+
     private func snapshot(to path: String) {
         guard let window = NSApp.keyWindow ?? NSApp.orderedWindows.first(where: { $0.isVisible && $0.sheetParent == nil }) else { return }
         let targets = [window] + window.childWindows.orEmpty + (window.attachedSheet.map { [$0] } ?? [])

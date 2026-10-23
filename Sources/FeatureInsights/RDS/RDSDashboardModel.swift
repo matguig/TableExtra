@@ -9,7 +9,10 @@ public final class RDSDashboardModel: ObservableObject {
     public let context: WorkspaceContext
     /// nil when the connection has no complete AWS settings (the view shows how to set them).
     public let settings: AWSSettings?
-    let service: RDSService?
+    private(set) var service: RDSService?
+    /// Why the AWS clients could not be created (no access to ~/.aws yet, no region…); nil once they are.
+    @Published private(set) var setupError: AWSError?
+    private let makeAPI: (AWSSettings) throws -> AWSRDSAPI
 
     @Published var overview = SectionState<RDSOverview>()
     @Published var metrics = SectionState<[RDSMetricSeries]>()
@@ -28,16 +31,37 @@ public final class RDSDashboardModel: ObservableObject {
     private var task: Task<Void, Never>?
 
     public convenience init(context: WorkspaceContext) {
-        let s = context.connection.effectiveAWS
-        self.init(context: context, settings: s, runner: AWSCLI.resolved())
+        self.init(context: context, settings: context.connection.effectiveAWS, makeAPI: { try AWSSDKRDSAPI(settings: $0) })
     }
 
-    /// `runner` is the real CLI in the app, a stub or fake script in tests.
-    public init(context: WorkspaceContext, settings: AWSSettings?, runner: AWSCommandRunning) {
+    /// `api` is a stub in tests.
+    public convenience init(context: WorkspaceContext, settings: AWSSettings?, api: AWSRDSAPI) {
+        self.init(context: context, settings: settings, makeAPI: { _ in api })
+    }
+
+    init(context: WorkspaceContext, settings: AWSSettings?, makeAPI: @escaping (AWSSettings) throws -> AWSRDSAPI) {
         self.context = context
-        let usable = settings?.isComplete == true ? settings : nil
-        self.settings = usable
-        self.service = usable.map { RDSService(settings: $0, runner: runner) }
+        self.settings = settings?.isComplete == true ? settings : nil
+        self.makeAPI = makeAPI
+        connectAPI()
+    }
+
+    private func connectAPI() {
+        guard let settings else { return }
+        do {
+            service = RDSService(settings: settings, api: try makeAPI(settings))
+            setupError = nil
+        } catch {
+            service = nil
+            setupError = AWSError.from(error, permission: "", profile: settings.profile)
+        }
+    }
+
+    /// Asks for the AWS folder, then loads everything.
+    func grantAWSAccess() {
+        guard AWSConfigFolder.requestAccess() else { return }
+        connectAPI()
+        if service != nil { reload(full: true) }
     }
 
     func start() {
@@ -77,7 +101,7 @@ public final class RDSDashboardModel: ObservableObject {
         let instance = currentInstance
         async let m: Void = load({ $0.metrics = $1 }, { $0.metrics }) { try await service.metrics(target: target, range: range) }
         async let pi: Void = load({ $0.insights = $1 }, { $0.insights }) {
-            guard let instance else { throw AWSCLIError.failed("Performance Insights needs the instance description, which did not load.") }
+            guard let instance else { throw AWSError.failed("Performance Insights needs the instance description, which did not load.") }
             return try await service.performanceInsights(instance: instance, range: range)
         }
         _ = await (ev, m, pi)
@@ -96,7 +120,7 @@ public final class RDSDashboardModel: ObservableObject {
             state.value = value
             state.error = nil
         } catch {
-            if Task.isCancelled || error is CancellationError || (error as? AWSCLIError) == .cancelled {
+            if Task.isCancelled || error is CancellationError || (error as? AWSError) == .cancelled {
                 state = get(self)
                 state.isLoading = false
                 set(self, state)

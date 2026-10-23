@@ -1,4 +1,5 @@
 import AppKit
+import FeatureInsights
 import MTPCore
 import MTPUIKit
 import SwiftUI
@@ -12,6 +13,9 @@ struct ConnectionFormView: View {
     @State private var extraOptionsText = ""
     @State private var portText = ""
     @State private var hostKey: SSHKnownHosts.Entry?
+    @State private var awsFolder: String?
+    @State private var awsProfiles: [String] = []
+    @State private var awsTest: TestState = .idle
 
     enum TestState: Equatable {
         case idle, running, ok(String), failed(String)
@@ -205,7 +209,7 @@ struct ConnectionFormView: View {
                 set: { draft.config.aws = $0 })
     }
 
-    /// RDS / CloudWatch / Performance Insights through the `aws` CLI with one of the user's profiles (read-only).
+    /// RDS / CloudWatch / Performance Insights through the AWS SDK with one of the user's profiles (read-only).
     private var awsFields: some View {
         let ep = draft.config.rdsEndpoint
         return VStack(alignment: .leading, spacing: 10) {
@@ -218,11 +222,25 @@ struct ConnectionFormView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if awsBinding.wrappedValue.isEnabled {
+                row("AWS folder") {
+                    HStack {
+                        if let path = awsFolder {
+                            Label(path, systemImage: "checkmark.circle.fill").foregroundStyle(.secondary).lineLimit(1)
+                            Spacer()
+                            Button("Change…") { grantAWSFolder() }
+                        } else {
+                            Text("Not shared yet").foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Allow Access to ~/.aws…") { grantAWSFolder() }
+                        }
+                    }
+                }
                 row("AWS profile") {
                     Picker("", selection: Binding(get: { awsBinding.wrappedValue.profile ?? "" },
                                                   set: { awsBinding.wrappedValue.profile = $0.isEmpty ? nil : $0 })) {
-                        Text("Default").tag("")
-                        ForEach(AWSProfileList.names(), id: \.self) { Text($0).tag($0) }
+                        Text("default").tag("")
+                        ForEach(awsProfiles.filter { $0 != "default" }, id: \.self) { Text($0).tag($0) }
+                        if let p = awsBinding.wrappedValue.profile, !p.isEmpty, !awsProfiles.contains(p) { Text(p).tag(p) }
                     }
                     .labelsHidden()
                 }
@@ -238,8 +256,47 @@ struct ConnectionFormView: View {
                         Toggle("Aurora cluster", isOn: awsBinding.isCluster).fixedSize()
                     }
                 }
-                Text("Read-only: TableExtra runs `aws rds describe-*`, `cloudwatch get-metric-data` and `pi describe-dimension-keys` with this profile. No keys are stored in TableExtra.")
+                HStack(alignment: .firstTextBaseline) {
+                    Button("Test AWS Access") { testAWS() }
+                        .disabled(awsFolder == nil || awsTest == .running)
+                    switch awsTest {
+                    case .idle: EmptyView()
+                    case .running: ProgressView().controlSize(.small)
+                    case .ok(let who): Label(who, systemImage: "checkmark.circle.fill").foregroundStyle(.green).lineLimit(2).textSelection(.enabled)
+                    case .failed(let why): Label(why, systemImage: "xmark.octagon.fill").foregroundStyle(.red).lineLimit(3).textSelection(.enabled)
+                    }
+                }
+                .font(.caption)
+                Text("""
+                    Read-only: TableExtra only calls RDS Describe*, CloudWatch GetMetricData and Performance Insights reads, with this \
+                    profile's credentials from the AWS folder you shared. No keys are copied or stored by TableExtra.
+                    """)
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear(perform: refreshAWSFolder)
+    }
+
+    private func refreshAWSFolder() {
+        awsFolder = AWSConfigFolder.displayPath
+        awsProfiles = AWSConfigFolder.profileNames()
+    }
+
+    private func grantAWSFolder() {
+        if AWSConfigFolder.requestAccess() { refreshAWSFolder() }
+        awsTest = .idle
+    }
+
+    /// STS GetCallerIdentity with the form's settings: shows which identity TableExtra will use.
+    private func testAWS() {
+        let settings = (draft.config.aws ?? AWSSettings()).filled(from: draft.config.rdsEndpoint)
+        awsTest = .running
+        Task {
+            do {
+                let who = try await AWSSDKRDSAPI(settings: settings).callerIdentity()
+                awsTest = .ok(who)
+            } catch {
+                awsTest = .failed(error.localizedDescription)
             }
         }
     }
@@ -438,26 +495,4 @@ struct ConnectionFormView: View {
     }
 }
 
-/// Profile names from ~/.aws/config and ~/.aws/credentials: only the [section] headers are kept, nothing else.
-enum AWSProfileList {
-    static func names() -> [String] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".aws")
-        var names = Set<String>()
-        for (file, prefix) in [("config", "profile "), ("credentials", "")] {
-            guard let text = try? String(contentsOf: home.appendingPathComponent(file), encoding: .utf8) else { continue }
-            for line in text.split(separator: "\n") {
-                let t = line.trimmingCharacters(in: .whitespaces)
-                guard t.hasPrefix("["), t.hasSuffix("]") else { continue }
-                var name = String(t.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
-                if file == "config" {
-                    if name == "default" { names.insert(name); continue }
-                    guard name.hasPrefix(prefix) else { continue }   // sso-session / services sections
-                    name = String(name.dropFirst(prefix.count))
-                }
-                if !name.isEmpty { names.insert(name) }
-            }
-        }
-        return names.sorted()
-    }
-}
 

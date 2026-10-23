@@ -72,7 +72,8 @@ So:
 - Per-connection AWS settings (profile, region, instance or cluster). The region and identifier are detected from the RDS hostname.
 - Dashboard with instance details, CloudWatch charts (CPU, connections, memory, storage, IOPS, latency, network), Performance Insights top SQL and waits, RDS events and pending maintenance.
 - Warnings, for example low free storage without autoscaling, or a publicly accessible instance.
-- It runs through your local `aws` CLI with a strict allowlist of read-only commands. A minimal read-only IAM policy is enough.
+- It uses the [AWS SDK for Swift](https://github.com/awslabs/aws-sdk-swift) with your existing profiles (static keys, assumed roles, SSO). TableExtra reads `~/.aws` only after you select that folder once, and it never copies or stores keys.
+- It only calls read operations (`Describe*`, `GetMetricData`, Performance Insights reads), so a minimal read-only IAM policy is enough. No `aws` CLI is needed.
 
 ## Requirements
 
@@ -81,10 +82,11 @@ So:
 - Homebrew `libpq` and `libssh2`: `brew install libpq libssh2`.
 - Optional:
   - [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`) for the AI features;
-  - the AWS CLI v2 for RDS monitoring;
   - `pg_dump` / `pg_restore` for backups.
 
 ## Build and run
+
+The first build downloads the AWS SDK for Swift (about 2.5 GB of git history) and takes a few minutes. Later builds are incremental.
 
 ```bash
 git clone https://github.com/matguig/TableExtra.git

@@ -4,7 +4,7 @@ import MTPUIKit
 import SwiftUI
 
 /// AWS RDS / Aurora monitoring for the connection: configuration, warnings, CloudWatch charts, Performance Insights, events.
-/// Read-only, through the user's `aws` CLI and profiles (`context.connection.effectiveAWS`).
+/// Read-only, through the AWS SDK with the user's profiles (`context.connection.effectiveAWS`).
 public struct RDSDashboardView: View {
     @StateObject private var model: RDSDashboardModel
 
@@ -27,6 +27,8 @@ struct RDSDashboardContent: View {
             RDSHeader(model: model)
             if model.settings == nil {
                 RDSNotConfiguredView(connection: model.context.connection)
+            } else if let setupError = model.setupError {
+                RDSSetupErrorView(error: setupError, grant: model.grantAWSAccess)
             } else {
                 ScrollView {
                     RDSDashboardSections(model: model)
@@ -35,7 +37,7 @@ struct RDSDashboardContent: View {
                         .frame(maxWidth: .infinity)
                 }
                 StatusBar {
-                    Text("Read-only · aws CLI")
+                    Text("Read-only · AWS SDK")
                     if let p = model.settings?.profile, !p.isEmpty { Text("profile \(p)") }
                 } trailing: {
                     if model.isRefreshing {
@@ -55,7 +57,7 @@ struct RDSHeader: View {
 
     var body: some View {
         PaneHeader("AWS RDS", subtitle: model.subtitle, systemImage: "cloud", tint: .orange) {
-            if model.settings != nil {
+            if model.settings != nil && model.setupError == nil {
                 HStack(spacing: DS.Space.xs) {
                     if model.isRefreshing { ProgressView().controlSize(.small).padding(.trailing, DS.Space.xs) }
                     if let cluster = model.overview.value?.cluster, cluster.members.count > 1 { memberMenu(cluster) }
@@ -111,7 +113,25 @@ struct RDSNotConfiguredView: View {
             return "RDS monitoring is turned off in this connection's settings (AWS section)."
         }
         return "Open the connection settings and fill in the AWS section: profile, region and DB instance (or Aurora cluster) identifier. "
-            + "TableExtra reads RDS, CloudWatch and Performance Insights read-only through your local aws CLI (v2) and its profiles."
+            + "TableExtra reads RDS, CloudWatch and Performance Insights read-only with your AWS profiles."
+    }
+}
+
+/// The AWS clients could not be created: most often the AWS folder was never granted.
+struct RDSSetupErrorView: View {
+    var error: AWSError
+    var grant: () -> Void
+
+    var body: some View {
+        if error == .noConfigAccess {
+            EmptyState("Allow access to your AWS profiles", systemImage: "key.horizontal",
+                       message: "TableExtra reads your profiles and credentials from your AWS folder (usually ~/.aws), read-only, "
+                           + "and only after you select it. Nothing is written there and no keys are copied.") {
+                Button("Allow Access to ~/.aws…", action: grant).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            }
+        } else {
+            EmptyState("AWS is not reachable", systemImage: "exclamationmark.triangle", message: error.localizedDescription)
+        }
     }
 }
 

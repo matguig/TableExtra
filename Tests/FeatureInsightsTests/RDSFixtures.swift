@@ -1,388 +1,206 @@
+import AWSCloudWatch
+import AWSPI
+import AWSRDS
 import Foundation
 @testable import FeatureInsights
 
-/// Canned AWS CLI v2 output (shapes copied from real `--output json` responses, values anonymised).
+/// Canned AWS SDK responses (values from real responses, anonymised).
 enum RDSFixtures {
-    static let instance = """
-    {
-        "DBInstances": [
-            {
-                "DBInstanceIdentifier": "shop-prod",
-                "DBInstanceClass": "db.t4g.medium",
-                "Engine": "postgres",
-                "DBInstanceStatus": "available",
-                "MasterUsername": "postgres",
-                "DBName": "shop",
-                "Endpoint": {
-                    "Address": "shop-prod.c9akciq32xyz.eu-west-3.rds.amazonaws.com",
-                    "Port": 5432,
-                    "HostedZoneId": "ZMESEXB7ZGGQ3"
-                },
-                "AllocatedStorage": 100,
-                "InstanceCreateTime": "2023-03-14T09:26:53.512000+00:00",
-                "PreferredBackupWindow": "02:00-02:30",
-                "BackupRetentionPeriod": 7,
-                "DBSecurityGroups": [],
-                "VpcSecurityGroups": [{"VpcSecurityGroupId": "sg-0a1b2c3d4e5f", "Status": "active"}],
-                "DBParameterGroups": [
-                    {"DBParameterGroupName": "shop-pg16", "ParameterApplyStatus": "pending-reboot"}
-                ],
-                "AvailabilityZone": "eu-west-3a",
-                "DBSubnetGroup": {"DBSubnetGroupName": "default-vpc-0abc", "SubnetGroupStatus": "Complete"},
-                "PreferredMaintenanceWindow": "sun:03:00-sun:03:30",
-                "PendingModifiedValues": {
-                    "DBInstanceClass": "db.m7g.large",
-                    "PendingCloudwatchLogsExports": {"LogTypesToEnable": ["postgresql"]}
-                },
-                "LatestRestorableTime": "2026-10-23T08:55:00+00:00",
-                "MultiAZ": true,
-                "EngineVersion": "16.4",
-                "AutoMinorVersionUpgrade": true,
-                "ReadReplicaDBInstanceIdentifiers": [],
-                "LicenseModel": "postgresql-license",
-                "OptionGroupMemberships": [{"OptionGroupName": "default:postgres-16", "Status": "in-sync"}],
-                "SecondaryAvailabilityZone": "eu-west-3b",
-                "PubliclyAccessible": false,
-                "StorageType": "gp3",
-                "Iops": 3000,
-                "StorageThroughput": 125,
-                "DbInstancePort": 0,
-                "StorageEncrypted": true,
-                "KmsKeyId": "arn:aws:kms:eu-west-3:123456789012:key/0f1e2d3c-aaaa-bbbb-cccc-1234567890ab",
-                "DbiResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWXY1",
-                "CACertificateIdentifier": "rds-ca-2019",
-                "DomainMemberships": [],
-                "CopyTagsToSnapshot": true,
-                "MonitoringInterval": 60,
-                "EnhancedMonitoringResourceArn": "arn:aws:logs:eu-west-3:123456789012:log-group:RDSOSMetrics:log-stream:db-ABCDEFGHIJKLMNOPQRSTUVWXY1",
-                "MonitoringRoleArn": "arn:aws:iam::123456789012:role/rds-monitoring-role",
-                "DBInstanceArn": "arn:aws:rds:eu-west-3:123456789012:db:shop-prod",
-                "IAMDatabaseAuthenticationEnabled": false,
-                "PerformanceInsightsEnabled": true,
-                "PerformanceInsightsKMSKeyId": "arn:aws:kms:eu-west-3:123456789012:key/0f1e2d3c-aaaa-bbbb-cccc-1234567890ab",
-                "PerformanceInsightsRetentionPeriod": 7,
-                "DeletionProtection": true,
-                "AssociatedRoles": [],
-                "MaxAllocatedStorage": 500,
-                "TagList": [{"Key": "env", "Value": "prod"}],
-                "CustomerOwnedIpEnabled": false,
-                "BackupTarget": "region",
-                "NetworkType": "IPV4",
-                "StorageVolumeStatus": "",
-                "CertificateDetails": {
-                    "CAIdentifier": "rds-ca-2019",
-                    "ValidTill": "2026-11-30T23:59:59+00:00"
-                },
-                "DedicatedLogVolume": false,
-                "EngineLifecycleSupport": "open-source-rds-extended-support"
-            }
-        ]
-    }
-    """
-
-    static let cluster = """
-    {
-        "DBClusters": [
-            {
-                "AllocatedStorage": 1,
-                "AvailabilityZones": ["eu-west-1a", "eu-west-1b", "eu-west-1c"],
-                "BackupRetentionPeriod": 14,
-                "DatabaseName": "app",
-                "DBClusterIdentifier": "app-aurora",
-                "DBClusterParameterGroup": "app-aurora-pg15",
-                "DBSubnetGroup": "app-db-subnets",
-                "Status": "available",
-                "EarliestRestorableTime": "2026-10-09T02:31:12.100000+00:00",
-                "Endpoint": "app-aurora.cluster-c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com",
-                "ReaderEndpoint": "app-aurora.cluster-ro-c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com",
-                "MultiAZ": true,
-                "Engine": "aurora-postgresql",
-                "EngineVersion": "15.8",
-                "LatestRestorableTime": "2026-10-23T08:58:41.900000+00:00",
-                "Port": 5432,
-                "MasterUsername": "app_admin",
-                "PreferredBackupWindow": "01:00-01:30",
-                "PreferredMaintenanceWindow": "tue:04:00-tue:04:30",
-                "ReadReplicaIdentifiers": [],
-                "DBClusterMembers": [
-                    {"DBInstanceIdentifier": "app-aurora-reader-1", "IsClusterWriter": false, "DBClusterParameterGroupStatus": "in-sync", "PromotionTier": 1},
-                    {"DBInstanceIdentifier": "app-aurora-writer", "IsClusterWriter": true, "DBClusterParameterGroupStatus": "pending-reboot", "PromotionTier": 1}
-                ],
-                "VpcSecurityGroups": [{"VpcSecurityGroupId": "sg-0123456789abcdef0", "Status": "active"}],
-                "HostedZoneId": "Z29XKXDKYMONMX",
-                "StorageEncrypted": true,
-                "KmsKeyId": "arn:aws:kms:eu-west-1:123456789012:key/11111111-2222-3333-4444-555555555555",
-                "DbClusterResourceId": "cluster-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                "DBClusterArn": "arn:aws:rds:eu-west-1:123456789012:cluster:app-aurora",
-                "AssociatedRoles": [],
-                "IAMDatabaseAuthenticationEnabled": false,
-                "ClusterCreateTime": "2024-02-01T10:12:00.351000+00:00",
-                "EngineMode": "provisioned",
-                "DeletionProtection": true,
-                "HttpEndpointEnabled": false,
-                "CopyTagsToSnapshot": true,
-                "CrossAccountClone": false,
-                "DomainMemberships": [],
-                "TagList": [],
-                "StorageType": "aurora",
-                "AutoMinorVersionUpgrade": true,
-                "ServerlessV2ScalingConfiguration": {"MinCapacity": 0.5, "MaxCapacity": 16.0},
-                "NetworkType": "IPV4",
-                "EngineLifecycleSupport": "open-source-rds-extended-support"
-            }
-        ]
-    }
-    """
-
-    static func clusterInstance(_ id: String, writer: Bool, az: String, resource: String) -> String {
-        """
-            {
-                "DBInstanceIdentifier": "\(id)",
-                "DBInstanceClass": "db.serverless",
-                "Engine": "aurora-postgresql",
-                "DBInstanceStatus": "available",
-                "Endpoint": {"Address": "\(id).c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com", "Port": 5432, "HostedZoneId": "Z29XKXDKYMONMX"},
-                "AllocatedStorage": 1,
-                "InstanceCreateTime": "2024-02-01T10:20:11.000000+00:00",
-                "PreferredBackupWindow": "01:00-01:30",
-                "BackupRetentionPeriod": 14,
-                "DBParameterGroups": [{"DBParameterGroupName": "default.aurora-postgresql15", "ParameterApplyStatus": "in-sync"}],
-                "AvailabilityZone": "\(az)",
-                "PreferredMaintenanceWindow": "tue:04:00-tue:04:30",
-                "PendingModifiedValues": {},
-                "MultiAZ": false,
-                "EngineVersion": "15.8",
-                "AutoMinorVersionUpgrade": true,
-                "PubliclyAccessible": false,
-                "StorageType": "aurora",
-                "DbInstancePort": 0,
-                "DBClusterIdentifier": "app-aurora",
-                "StorageEncrypted": true,
-                "DbiResourceId": "\(resource)",
-                "CACertificateIdentifier": "rds-ca-rsa2048-g1",
-                "MonitoringInterval": 0,
-                "PromotionTier": 1,
-                "DBInstanceArn": "arn:aws:rds:eu-west-1:123456789012:db:\(id)",
-                "IAMDatabaseAuthenticationEnabled": false,
-                "PerformanceInsightsEnabled": \(writer ? "true" : "false"),
-                "PerformanceInsightsRetentionPeriod": 7,
-                "DeletionProtection": false,
-                "CertificateDetails": {"CAIdentifier": "rds-ca-rsa2048-g1", "ValidTill": "2027-02-01T10:18:43+00:00"}
-            }
-        """
+    static func date(_ s: String) -> Date {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: s) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: s) ?? .distantPast
     }
 
-    static var clusterInstances: String {
-        "{\"DBInstances\": [\n" + clusterInstance("app-aurora-writer", writer: true, az: "eu-west-1a", resource: "db-WRITERRESOURCEID0000000001") + ",\n"
-            + clusterInstance("app-aurora-reader-1", writer: false, az: "eu-west-1b", resource: "db-READERRESOURCEID0000000001") + "\n]}"
+    static let instance = DescribeDBInstancesOutput(dbInstances: [
+        RDSClientTypes.DBInstance(
+            allocatedStorage: 100,
+            autoMinorVersionUpgrade: true,
+            availabilityZone: "eu-west-3a",
+            backupRetentionPeriod: 7,
+            caCertificateIdentifier: "rds-ca-2019",
+            certificateDetails: RDSClientTypes.CertificateDetails(caIdentifier: "rds-ca-2019", validTill: date("2026-11-30T23:59:59Z")),
+            dbInstanceArn: "arn:aws:rds:eu-west-3:123456789012:db:shop-prod",
+            dbInstanceClass: "db.t4g.medium",
+            dbInstanceIdentifier: "shop-prod",
+            dbInstanceStatus: "available",
+            dbParameterGroups: [RDSClientTypes.DBParameterGroupStatus(dbParameterGroupName: "shop-pg16", parameterApplyStatus: "pending-reboot")],
+            dbiResourceId: "db-ABCDEFGHIJKLMNOPQRSTUVWXY1",
+            deletionProtection: true,
+            endpoint: RDSClientTypes.Endpoint(address: "shop-prod.c9akciq32xyz.eu-west-3.rds.amazonaws.com", hostedZoneId: "ZMESEXB7ZGGQ3", port: 5432),
+            engine: "postgres",
+            engineVersion: "16.4",
+            iamDatabaseAuthenticationEnabled: false,
+            instanceCreateTime: date("2023-03-14T09:26:53.512Z"),
+            iops: 3000,
+            maxAllocatedStorage: 500,
+            monitoringInterval: 60,
+            multiAZ: true,
+            pendingModifiedValues: RDSClientTypes.PendingModifiedValues(
+                dbInstanceClass: "db.m7g.large",
+                masterUserPassword: "****",
+                pendingCloudwatchLogsExports: RDSClientTypes.PendingCloudwatchLogsExports(logTypesToEnable: ["postgresql"])),
+            performanceInsightsEnabled: true,
+            performanceInsightsRetentionPeriod: 7,
+            preferredBackupWindow: "02:00-02:30",
+            preferredMaintenanceWindow: "sun:03:00-sun:03:30",
+            publiclyAccessible: false,
+            secondaryAvailabilityZone: "eu-west-3b",
+            storageEncrypted: true,
+            storageThroughput: 125,
+            storageType: "gp3"
+        ),
+    ])
+
+    static let cluster = DescribeDBClustersOutput(dbClusters: [
+        RDSClientTypes.DBCluster(
+            availabilityZones: ["eu-west-1a", "eu-west-1b", "eu-west-1c"],
+            backupRetentionPeriod: 14,
+            clusterCreateTime: date("2024-02-01T10:12:00.351Z"),
+            dbClusterArn: "arn:aws:rds:eu-west-1:123456789012:cluster:app-aurora",
+            dbClusterIdentifier: "app-aurora",
+            dbClusterMembers: [
+                RDSClientTypes.DBClusterMember(dbClusterParameterGroupStatus: "in-sync", dbInstanceIdentifier: "app-aurora-reader-1",
+                                               isClusterWriter: false, promotionTier: 1),
+                RDSClientTypes.DBClusterMember(dbClusterParameterGroupStatus: "pending-reboot", dbInstanceIdentifier: "app-aurora-writer",
+                                               isClusterWriter: true, promotionTier: 1),
+            ],
+            dbClusterParameterGroup: "app-aurora-pg15",
+            dbClusterResourceId: "cluster-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            deletionProtection: true,
+            endpoint: "app-aurora.cluster-c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com",
+            engine: "aurora-postgresql",
+            engineMode: "provisioned",
+            engineVersion: "15.8",
+            multiAZ: true,
+            port: 5432,
+            preferredBackupWindow: "01:00-01:30",
+            preferredMaintenanceWindow: "tue:04:00-tue:04:30",
+            readerEndpoint: "app-aurora.cluster-ro-c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com",
+            serverlessV2ScalingConfiguration: RDSClientTypes.ServerlessV2ScalingConfigurationInfo(maxCapacity: 16, minCapacity: 0.5),
+            status: "available",
+            storageEncrypted: true,
+            storageType: "aurora"
+        ),
+    ])
+
+    static func clusterInstance(_ id: String, writer: Bool, az: String, resource: String) -> RDSClientTypes.DBInstance {
+        RDSClientTypes.DBInstance(
+            allocatedStorage: 1,
+            autoMinorVersionUpgrade: true,
+            availabilityZone: az,
+            backupRetentionPeriod: 14,
+            caCertificateIdentifier: "rds-ca-rsa2048-g1",
+            certificateDetails: RDSClientTypes.CertificateDetails(caIdentifier: "rds-ca-rsa2048-g1", validTill: date("2027-02-01T10:18:43Z")),
+            dbClusterIdentifier: "app-aurora",
+            dbInstanceArn: "arn:aws:rds:eu-west-1:123456789012:db:\(id)",
+            dbInstanceClass: "db.serverless",
+            dbInstanceIdentifier: id,
+            dbInstanceStatus: "available",
+            dbParameterGroups: [RDSClientTypes.DBParameterGroupStatus(dbParameterGroupName: "default.aurora-postgresql15", parameterApplyStatus: "in-sync")],
+            dbiResourceId: resource,
+            deletionProtection: false,
+            endpoint: RDSClientTypes.Endpoint(address: "\(id).c1x2y3z4w5v6.eu-west-1.rds.amazonaws.com", port: 5432),
+            engine: "aurora-postgresql",
+            engineVersion: "15.8",
+            iamDatabaseAuthenticationEnabled: false,
+            instanceCreateTime: date("2024-02-01T10:20:11Z"),
+            monitoringInterval: 0,
+            multiAZ: false,
+            pendingModifiedValues: RDSClientTypes.PendingModifiedValues(),
+            performanceInsightsEnabled: writer,
+            performanceInsightsRetentionPeriod: 7,
+            preferredBackupWindow: "01:00-01:30",
+            preferredMaintenanceWindow: "tue:04:00-tue:04:30",
+            promotionTier: 1,
+            publiclyAccessible: false,
+            storageEncrypted: true,
+            storageType: "aurora"
+        )
     }
 
-    static let pending = """
-    {
-        "PendingMaintenanceActions": [
-            {
-                "ResourceIdentifier": "arn:aws:rds:eu-west-3:123456789012:db:shop-prod",
-                "PendingMaintenanceActionDetails": [
-                    {
-                        "Action": "system-update",
-                        "AutoAppliedAfterDate": "2026-11-15T00:00:00+00:00",
-                        "ForcedApplyDate": "2026-12-01T00:00:00+00:00",
-                        "CurrentApplyDate": "2026-11-15T03:00:00+00:00",
-                        "Description": "New Operating System update is available"
-                    }
-                ]
-            }
-        ]
+    /// Returned in the API's order (not writer first).
+    static let clusterInstances = DescribeDBInstancesOutput(dbInstances: [
+        clusterInstance("app-aurora-writer", writer: true, az: "eu-west-1a", resource: "db-WRITERRESOURCEID0000000001"),
+        clusterInstance("app-aurora-reader-1", writer: false, az: "eu-west-1b", resource: "db-READERRESOURCEID0000000001"),
+    ])
+
+    static let pending = DescribePendingMaintenanceActionsOutput(pendingMaintenanceActions: [
+        RDSClientTypes.ResourcePendingMaintenanceActions(
+            pendingMaintenanceActionDetails: [
+                RDSClientTypes.PendingMaintenanceAction(action: "system-update", autoAppliedAfterDate: date("2026-11-15T00:00:00Z"),
+                                                        currentApplyDate: date("2026-11-15T03:00:00Z"),
+                                                        description: "New Operating System update is available",
+                                                        forcedApplyDate: date("2026-12-01T00:00:00Z")),
+            ],
+            resourceIdentifier: "arn:aws:rds:eu-west-3:123456789012:db:shop-prod"),
+    ])
+
+    static let noPending = DescribePendingMaintenanceActionsOutput(pendingMaintenanceActions: [])
+
+    static let events = DescribeEventsOutput(events: [
+        RDSClientTypes.Event(date: date("2026-10-23T02:03:11.412Z"), eventCategories: ["backup"], message: "Backing up DB instance",
+                             sourceIdentifier: "shop-prod", sourceType: .dbInstance),
+        RDSClientTypes.Event(date: date("2026-10-23T02:09:47.003Z"), eventCategories: ["backup"], message: "Finished DB Instance backup",
+                             sourceIdentifier: "shop-prod", sourceType: .dbInstance),
+        RDSClientTypes.Event(date: date("2026-10-22T17:41:02.120Z"), eventCategories: ["failover"], message: "Multi-AZ instance failover started.",
+                             sourceIdentifier: "shop-prod", sourceType: .dbInstance),
+    ])
+
+    /// Descending timestamps (the API default), an unrequested id, a NaN and a pagination repeat.
+    static let metrics: [CloudWatchClientTypes.MetricDataResult] = [
+        CloudWatchClientTypes.MetricDataResult(id: "cpu", label: "CPUUtilization", statusCode: .complete,
+                                               timestamps: [date("2026-10-23T09:02:00Z"), date("2026-10-23T09:01:00Z"), date("2026-10-23T09:00:00Z")],
+                                               values: [41.5, 38.25, 12.0]),
+        CloudWatchClientTypes.MetricDataResult(id: "readlatency", label: "ReadLatency", statusCode: .complete,
+                                               timestamps: [date("2026-10-23T09:01:00Z"), date("2026-10-23T09:00:00Z"), date("2026-10-23T08:59:00Z")],
+                                               values: [0.00184, 0.0009, .nan]),
+        CloudWatchClientTypes.MetricDataResult(id: "memory", label: "FreeableMemory", statusCode: .complete, timestamps: [], values: []),
+        CloudWatchClientTypes.MetricDataResult(id: "cpu", label: "CPUUtilization", statusCode: .complete,
+                                               timestamps: [date("2026-10-23T08:59:00Z")], values: [9.75]),
+        CloudWatchClientTypes.MetricDataResult(id: "other", label: "Whatever", statusCode: .complete,
+                                               timestamps: [date("2026-10-23T09:00:00Z")], values: [1]),
+    ]
+
+    static let topSQLKeys: [PIClientTypes.DimensionKeyDescription] = [
+        ("SELECT o.id, o.status, c.email FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.created_at > $1 ORDER BY o.created_at DESC LIMIT $2", "AKIAIOSFODNN7SQL1", 1.8432),
+        ("UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1", "AKIAIOSFODNN7SQL2", 0.4121),
+        ("INSERT INTO audit_log (actor, action, payload) VALUES ($1, $2, $3::jsonb)", "AKIAIOSFODNN7SQL3", 0.2007),
+        ("WITH recent AS (SELECT * FROM order_items WHERE order_id = ANY($1)) SELECT product_id, sum(quantity) FROM recent GROUP BY ?", "AKIAIOSFODNN7SQL4", 0.0915),
+    ].map { statement, id, total in
+        PIClientTypes.DimensionKeyDescription(dimensions: ["db.sql_tokenized.statement": statement, "db.sql_tokenized.db_id": "pi-2372568224",
+                                                           "db.sql_tokenized.id": id], total: total)
     }
-    """
 
-    static let noPending = #"{"PendingMaintenanceActions": []}"#
-
-    /// Descending timestamps (the API default), microseconds, an unrequested id and a pagination repeat.
-    static let metrics = """
-    {
-        "MetricDataResults": [
-            {
-                "Id": "cpu",
-                "Label": "CPUUtilization",
-                "Timestamps": ["2026-10-23T09:02:00+00:00", "2026-10-23T09:01:00+00:00", "2026-10-23T09:00:00+00:00"],
-                "Values": [41.5, 38.25, 12.0],
-                "StatusCode": "Complete"
-            },
-            {
-                "Id": "readlatency",
-                "Label": "ReadLatency",
-                "Timestamps": ["2026-10-23T09:01:00.000000+00:00", "2026-10-23T09:00:00.000000+00:00"],
-                "Values": [0.00184, 0.0009],
-                "StatusCode": "Complete"
-            },
-            {
-                "Id": "memory",
-                "Label": "FreeableMemory",
-                "Timestamps": [],
-                "Values": [],
-                "StatusCode": "Complete"
-            },
-            {
-                "Id": "cpu",
-                "Label": "CPUUtilization",
-                "Timestamps": ["2026-10-23T08:59:00+00:00"],
-                "Values": [9.75],
-                "StatusCode": "Complete"
-            },
-            {
-                "Id": "other",
-                "Label": "Whatever",
-                "Timestamps": ["2026-10-23T09:00:00+00:00"],
-                "Values": [1],
-                "StatusCode": "Complete"
-            }
-        ],
-        "Messages": []
+    static let waitKeys: [PIClientTypes.DimensionKeyDescription] = [
+        ("CPU", "CPU", 1.2104), ("IO", "IO:DataFileRead", 0.7311), ("Lock", "Lock:transactionid", 0.3002),
+        ("LWLock", "LWLock:WALWrite", 0.0821), ("Client", "Client:ClientRead", 0.0612),
+    ].map { type, name, total in
+        PIClientTypes.DimensionKeyDescription(dimensions: ["db.wait_event.type": type, "db.wait_event.name": name], total: total)
     }
-    """
 
-    static let topSQL = """
-    {
-        "AlignedStartTime": "2026-10-23T03:00:00+00:00",
-        "AlignedEndTime": "2026-10-23T09:00:00+00:00",
-        "PartitionKeys": [],
-        "Keys": [
-            {
-                "Dimensions": {
-                    "db.sql_tokenized.statement": "SELECT o.id, o.status, c.email FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.created_at > $1 ORDER BY o.created_at DESC LIMIT $2",
-                    "db.sql_tokenized.db_id": "pi-2372568224",
-                    "db.sql_tokenized.id": "AKIAIOSFODNN7SQL1"
-                },
-                "Total": 1.8432
-            },
-            {
-                "Dimensions": {
-                    "db.sql_tokenized.statement": "UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1",
-                    "db.sql_tokenized.db_id": "pi-2372568224",
-                    "db.sql_tokenized.id": "AKIAIOSFODNN7SQL2"
-                },
-                "Total": 0.4121
-            },
-            {
-                "Dimensions": {
-                    "db.sql_tokenized.statement": "INSERT INTO audit_log (actor, action, payload) VALUES ($1, $2, $3::jsonb)",
-                    "db.sql_tokenized.db_id": "pi-2372568224",
-                    "db.sql_tokenized.id": "AKIAIOSFODNN7SQL3"
-                },
-                "Total": 0.2007
-            },
-            {
-                "Dimensions": {
-                    "db.sql_tokenized.statement": "WITH recent AS (SELECT * FROM order_items WHERE order_id = ANY($1)) SELECT product_id, sum(quantity) FROM recent GROUP BY ?",
-                    "db.sql_tokenized.db_id": "pi-2372568224",
-                    "db.sql_tokenized.id": "AKIAIOSFODNN7SQL4"
-                },
-                "Total": 0.0915
-            }
-        ]
-    }
-    """
+    static let topSQL = DescribeDimensionKeysOutput(keys: topSQLKeys)
+    static let waits = DescribeDimensionKeysOutput(keys: waitKeys)
 
-    static let waits = """
-    {
-        "AlignedStartTime": "2026-10-23T03:00:00+00:00",
-        "AlignedEndTime": "2026-10-23T09:00:00+00:00",
-        "PartitionKeys": [],
-        "Keys": [
-            {"Dimensions": {"db.wait_event.type": "CPU", "db.wait_event.name": "CPU"}, "Total": 1.2104},
-            {"Dimensions": {"db.wait_event.type": "IO", "db.wait_event.name": "IO:DataFileRead"}, "Total": 0.7311},
-            {"Dimensions": {"db.wait_event.type": "Lock", "db.wait_event.name": "Lock:transactionid"}, "Total": 0.3002},
-            {"Dimensions": {"db.wait_event.type": "LWLock", "db.wait_event.name": "LWLock:WALWrite"}, "Total": 0.0821},
-            {"Dimensions": {"db.wait_event.type": "Client", "db.wait_event.name": "Client:ClientRead"}, "Total": 0.0612}
-        ]
-    }
-    """
-
-    static let load = """
-    {
-        "AlignedStartTime": "2026-10-23T08:57:00+00:00",
-        "AlignedEndTime": "2026-10-23T09:00:00+00:00",
-        "Identifier": "db-ABCDEFGHIJKLMNOPQRSTUVWXY1",
-        "MetricList": [
-            {
-                "Key": {"Metric": "db.load.avg"},
-                "DataPoints": [
-                    {"Timestamp": "2026-10-23T08:58:00+00:00", "Value": 2.5},
-                    {"Timestamp": "2026-10-23T08:57:00+00:00", "Value": 1.0},
-                    {"Timestamp": "2026-10-23T08:59:00+00:00"}
-                ]
-            }
-        ]
-    }
-    """
-
-    static let events = """
-    {
-        "Events": [
-            {
-                "SourceIdentifier": "shop-prod",
-                "SourceType": "db-instance",
-                "Message": "Backing up DB instance",
-                "EventCategories": ["backup"],
-                "Date": "2026-10-23T02:03:11.412000+00:00",
-                "SourceArn": "arn:aws:rds:eu-west-3:123456789012:db:shop-prod"
-            },
-            {
-                "SourceIdentifier": "shop-prod",
-                "SourceType": "db-instance",
-                "Message": "Finished DB Instance backup",
-                "EventCategories": ["backup"],
-                "Date": "2026-10-23T02:09:47.003000+00:00",
-                "SourceArn": "arn:aws:rds:eu-west-3:123456789012:db:shop-prod"
-            },
-            {
-                "SourceIdentifier": "shop-prod",
-                "SourceType": "db-instance",
-                "Message": "Multi-AZ instance failover started.",
-                "EventCategories": ["failover"],
-                "Date": "2026-10-22T17:41:02.120000+00:00",
-                "SourceArn": "arn:aws:rds:eu-west-3:123456789012:db:shop-prod"
-            }
-        ]
-    }
-    """
-
-    // MARK: Errors (stderr of AWS CLI v2, exit status 254 / 255)
-
-    static let accessDeniedRDS = """
-
-    An error occurred (AccessDenied) when calling the DescribeDBInstances operation: User: arn:aws:sts::123456789012:assumed-role/Developer/jane is not authorized to perform: rds:DescribeDBInstances on resource: arn:aws:rds:eu-west-3:123456789012:db:shop-prod because no identity-based policy allows the rds:DescribeDBInstances action
-    """
-    static let accessDeniedCloudWatch = """
-
-    An error occurred (AccessDenied) when calling the GetMetricData operation: User: arn:aws:sts::123456789012:assumed-role/Developer/jane is not authorized to perform: cloudwatch:GetMetricData because no identity-based policy allows the cloudwatch:GetMetricData action
-    """
-    static let notAuthorizedPI = """
-
-    An error occurred (NotAuthorizedException) when calling the DescribeDimensionKeys operation: User: arn:aws:sts::123456789012:assumed-role/Developer/jane is not authorized to perform: pi:DescribeDimensionKeys on resource: arn:aws:pi:eu-west-3:123456789012:metrics/rds/db-ABCDEFGHIJKLMNOPQRSTUVWXY1
-    """
-    static let accessDeniedNoAction = "An error occurred (AccessDeniedException) when calling the DescribeEvents operation: Access denied"
-    static let ssoExpired = "Error when retrieving token from sso: Token has expired and refresh failed"
-    static let ssoSession = "The SSO session associated with this profile has expired or is otherwise invalid. To refresh this SSO session run aws sso login with the corresponding profile."
-    static let unknownProfile = "\nThe config profile (prod-ro) could not be found\n"
-    static let noCredentials = "\nUnable to locate credentials. You can configure credentials by running \"aws configure\".\n"
-    static let expiredToken = "\nAn error occurred (ExpiredToken) when calling the DescribeDBInstances operation: The security token included in the request is expired\n"
-    static let notFound = "\nAn error occurred (DBInstanceNotFound) when calling the DescribeDBInstances operation: DBInstance shop-prd not found.\n"
-    static let cliV1 = "usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]\naws: error: Unknown options: --no-cli-pager\n"
+    static let load = GetResourceMetricsOutput(identifier: "db-ABCDEFGHIJKLMNOPQRSTUVWXY1", metricList: [
+        PIClientTypes.MetricKeyDataPoints(dataPoints: [
+            PIClientTypes.DataPoint(timestamp: date("2026-10-23T08:58:00Z"), value: 2.5),
+            PIClientTypes.DataPoint(timestamp: date("2026-10-23T08:57:00Z"), value: 1.0),
+            PIClientTypes.DataPoint(timestamp: date("2026-10-23T08:59:00Z")),
+        ]),
+    ])
 
     // MARK: Generated metrics (for the render and model tests)
 
-    /// get-metric-data output for every definition, with plausible curves ending at `now`.
-    static func metricData(_ defs: [RDSMetricDefinition], range: RDSTimeRange, now: Date) -> String {
+    /// GetMetricData results for every definition, with plausible curves ending at `now`.
+    static func metricData(_ defs: [RDSMetricDefinition], range: RDSTimeRange, now: Date) -> GetMetricDataOutput {
         let n = Int(range.seconds) / range.period
-        let f = ISO8601DateFormatter()
-        var results: [[String: Any]] = []
-        for d in defs {
-            var stamps: [String] = []
+        let results = defs.map { d -> CloudWatchClientTypes.MetricDataResult in
+            var stamps: [Date] = []
             var values: [Double] = []
             for k in 0..<n {
-                let t = now.addingTimeInterval(-Double(n - k) * Double(range.period))
                 let x = Double(k) / Double(max(n - 1, 1))
                 let wave = sin(x * .pi * 6) * 0.5 + 0.5
                 let spike = abs(x - 0.72) < 0.03 ? 1.0 : 0.0
@@ -407,101 +225,102 @@ enum RDSFixtures {
                 case "ACUUtilization": v = 12 + 20 * wave + 40 * spike
                 default: v = wave
                 }
-                stamps.append(f.string(from: t))
+                stamps.append(now.addingTimeInterval(-Double(n - k) * Double(range.period)))
                 values.append(v)
             }
-            results.append(["Id": d.id, "Label": d.metricName, "Timestamps": stamps.reversed() as [String], "Values": values.reversed() as [Double],
-                            "StatusCode": "Complete"])
+            return CloudWatchClientTypes.MetricDataResult(id: d.id, label: d.metricName, statusCode: .complete,
+                                                          timestamps: stamps.reversed(), values: values.reversed())
         }
-        let data = (try? JSONSerialization.data(withJSONObject: ["MetricDataResults": results, "Messages": [] as [Any]], options: [.prettyPrinted])) ?? Data()
-        return String(decoding: data, as: UTF8.self)
+        return GetMetricDataOutput(metricDataResults: results)
     }
 
-    static func loadSeries(range: RDSTimeRange, now: Date) -> String {
+    static func loadSeries(range: RDSTimeRange, now: Date) -> GetResourceMetricsOutput {
         let n = Int(range.seconds) / range.period
-        let f = ISO8601DateFormatter()
-        let points = (0..<n).map { k -> String in
+        let points = (0..<n).map { k -> PIClientTypes.DataPoint in
             let x = Double(k) / Double(max(n - 1, 1))
             let v = 0.9 + 0.8 * (sin(x * .pi * 6) * 0.5 + 0.5) + (abs(x - 0.72) < 0.03 ? 2.4 : 0)
-            return "{\"Timestamp\": \"\(f.string(from: now.addingTimeInterval(-Double(n - k) * Double(range.period))))\", \"Value\": \(v)}"
+            return PIClientTypes.DataPoint(timestamp: now.addingTimeInterval(-Double(n - k) * Double(range.period)), value: v)
         }
-        return "{\"Identifier\": \"db-X\", \"MetricList\": [{\"Key\": {\"Metric\": \"db.load.avg\"}, \"DataPoints\": [\(points.joined(separator: ","))]}]}"
+        return GetResourceMetricsOutput(identifier: "db-X", metricList: [PIClientTypes.MetricKeyDataPoints(dataPoints: points)])
     }
 }
 
-/// A fake `aws` executable: logs its arguments and AWS_PAGER, answers `<service>-<operation>.json`
-/// (exit 0) or `<service>-<operation>.err` (stderr, exit 254) from its directory.
-struct FakeAWS {
-    let dir: URL
-    var executable: URL { dir.appendingPathComponent("aws") }
-    var log: URL { dir.appendingPathComponent("calls.log") }
+/// Answers each AWS operation from a table and records the inputs (no network).
+final class StubAPI: AWSRDSAPI, @unchecked Sendable {
+    enum Call {
+        case instances(DescribeDBInstancesInput), clusters(DescribeDBClustersInput), pending(DescribePendingMaintenanceActionsInput)
+        case events(DescribeEventsInput), metrics(GetMetricDataInput), dimensionKeys(DescribeDimensionKeysInput)
+        case resourceMetrics(GetResourceMetricsInput), callerIdentity
 
-    static let script = """
-    #!/bin/sh
-    dir="$(cd "$(dirname "$0")" && pwd)"
-    line="ARGS"
-    for a in "$@"; do line="$line <$a>"; done
-    # One write per call: concurrent invocations must not interleave.
-    printf '%s\\nPAGER <%s> PROMPT <%s>\\n' "$line" "${AWS_PAGER-unset}" "${AWS_CLI_AUTO_PROMPT-unset}" >> "$dir/calls.log"
-    key="$1-$2"
-    if [ -f "$dir/$key.sleep" ]; then sleep "$(cat "$dir/$key.sleep")"; fi
-    if [ -f "$dir/$key.err" ]; then cat "$dir/$key.err" >&2; exit 254; fi
-    if [ -f "$dir/$key.json" ]; then cat "$dir/$key.json"; exit 0; fi
-    echo "fake aws: no fixture for $key" >&2
-    exit 2
-    """
-
-    init() throws {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("fake-aws-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try Self.script.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        var name: String {
+            switch self {
+            case .instances: return "DescribeDBInstances"
+            case .clusters: return "DescribeDBClusters"
+            case .pending: return "DescribePendingMaintenanceActions"
+            case .events: return "DescribeEvents"
+            case .metrics: return "GetMetricData"
+            case .dimensionKeys: return "DescribeDimensionKeys"
+            case .resourceMetrics: return "GetResourceMetrics"
+            case .callerIdentity: return "GetCallerIdentity"
+            }
+        }
     }
 
-    func set(_ service: String, _ operation: String, json: String) throws {
-        try json.write(to: dir.appendingPathComponent("\(service)-\(operation).json"), atomically: true, encoding: .utf8)
+    private let lock = NSLock()
+    private var _calls: [Call] = []
+    var instances: Result<DescribeDBInstancesOutput, Error> = .failure(AWSError.failed("no stub"))
+    var clusters: Result<DescribeDBClustersOutput, Error> = .failure(AWSError.failed("no stub"))
+    var pending: Result<DescribePendingMaintenanceActionsOutput, Error> = .failure(AWSError.failed("no stub"))
+    var events: Result<DescribeEventsOutput, Error> = .failure(AWSError.failed("no stub"))
+    var metricPages: [Result<GetMetricDataOutput, Error>] = []
+    /// Keyed by DimensionGroup.group.
+    var dimensionKeys: [String: Result<DescribeDimensionKeysOutput, Error>] = [:]
+    var resourceMetrics: Result<GetResourceMetricsOutput, Error> = .failure(AWSError.failed("no stub"))
+
+    var calls: [Call] { lock.withLock { _calls } }
+
+    private func record<T>(_ call: Call, _ answer: Result<T, Error>) throws -> T {
+        lock.withLock { _calls.append(call) }
+        return try answer.get()
     }
 
-    func fail(_ service: String, _ operation: String, stderr: String) throws {
-        try stderr.write(to: dir.appendingPathComponent("\(service)-\(operation).err"), atomically: true, encoding: .utf8)
+    func describeDBInstances(_ input: DescribeDBInstancesInput) async throws -> DescribeDBInstancesOutput { try record(.instances(input), instances) }
+    func describeDBClusters(_ input: DescribeDBClustersInput) async throws -> DescribeDBClustersOutput { try record(.clusters(input), clusters) }
+    func describePendingMaintenanceActions(_ input: DescribePendingMaintenanceActionsInput) async throws -> DescribePendingMaintenanceActionsOutput {
+        try record(.pending(input), pending)
     }
-
-    func sleep(_ service: String, _ operation: String, seconds: Int) throws {
-        try "\(seconds)".write(to: dir.appendingPathComponent("\(service)-\(operation).sleep"), atomically: true, encoding: .utf8)
+    func describeEvents(_ input: DescribeEventsInput) async throws -> DescribeEventsOutput { try record(.events(input), events) }
+    func getMetricData(_ input: GetMetricDataInput) async throws -> GetMetricDataOutput {
+        let page = lock.withLock { _calls.filter { $0.name == "GetMetricData" }.count }
+        return try record(.metrics(input), page < metricPages.count ? metricPages[page] : .success(GetMetricDataOutput()))
     }
+    func describeDimensionKeys(_ input: DescribeDimensionKeysInput) async throws -> DescribeDimensionKeysOutput {
+        try record(.dimensionKeys(input), dimensionKeys[input.groupBy?.group ?? ""] ?? .failure(AWSError.failed("no stub")))
+    }
+    func getResourceMetrics(_ input: GetResourceMetricsInput) async throws -> GetResourceMetricsOutput {
+        try record(.resourceMetrics(input), resourceMetrics)
+    }
+    func callerIdentity() async throws -> String { try record(.callerIdentity, .success("arn:aws:sts::123456789012:assumed-role/ReadOnly/jane")) }
 
-    var calls: [String] { ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init) }
-
-    func remove() { try? FileManager.default.removeItem(at: dir) }
-
-    /// Every fixture of a healthy single instance (or Aurora cluster), with metrics ending now.
-    func installAll(cluster: Bool, range: RDSTimeRange = .sixHours, now: Date = Date()) throws {
+    /// Every response of a healthy single instance (or Aurora cluster), with metrics ending now.
+    static func healthy(cluster: Bool, range: RDSTimeRange = .sixHours, now: Date = Date()) -> StubAPI {
+        let s = StubAPI()
+        let target: RDSMetricTarget
         if cluster {
-            try set("rds", "describe-db-clusters", json: RDSFixtures.cluster)
-            try set("rds", "describe-db-instances", json: RDSFixtures.clusterInstances)
-            let target = RDSMetricTarget(instanceID: "app-aurora-writer", clusterID: "app-aurora", instanceClass: "db.serverless",
-                                         isAurora: true, isWriter: true, isServerless: true)
-            try set("cloudwatch", "get-metric-data", json: RDSFixtures.metricData(RDSMetricCatalog.definitions(for: target), range: range, now: now))
-            try set("rds", "describe-pending-maintenance-actions", json: RDSFixtures.noPending)
+            s.clusters = .success(RDSFixtures.cluster)
+            s.instances = .success(RDSFixtures.clusterInstances)
+            s.pending = .success(RDSFixtures.noPending)
+            target = RDSMetricTarget(instanceID: "app-aurora-writer", clusterID: "app-aurora", instanceClass: "db.serverless",
+                                     isAurora: true, isWriter: true, isServerless: true)
         } else {
-            try set("rds", "describe-db-instances", json: RDSFixtures.instance)
-            let target = RDSMetricTarget(instanceID: "shop-prod", instanceClass: "db.t4g.medium")
-            try set("cloudwatch", "get-metric-data", json: RDSFixtures.metricData(RDSMetricCatalog.definitions(for: target), range: range, now: now))
-            try set("rds", "describe-pending-maintenance-actions", json: RDSFixtures.pending)
+            s.instances = .success(RDSFixtures.instance)
+            s.pending = .success(RDSFixtures.pending)
+            target = RDSMetricTarget(instanceID: "shop-prod", instanceClass: "db.t4g.medium")
         }
-        try set("rds", "describe-events", json: RDSFixtures.events)
-        // Both PI groupings go through describe-dimension-keys: answer with a merged key list.
-        try set("pi", "describe-dimension-keys", json: Self.mergedKeys)
-        try set("pi", "get-resource-metrics", json: RDSFixtures.loadSeries(range: range, now: now))
-    }
-
-    /// SQL and wait keys in one response; each parser keeps only its own dimension.
-    static var mergedKeys: String {
-        func keys(_ json: String) -> [Any] {
-            ((try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any])?["Keys"] as? [Any] ?? []
-        }
-        let all = keys(RDSFixtures.topSQL) + keys(RDSFixtures.waits)
-        let data = (try? JSONSerialization.data(withJSONObject: ["Keys": all])) ?? Data()
-        return String(decoding: data, as: UTF8.self)
+        s.metricPages = [.success(RDSFixtures.metricData(RDSMetricCatalog.definitions(for: target), range: range, now: now))]
+        s.events = .success(RDSFixtures.events)
+        s.dimensionKeys = ["db.sql_tokenized": .success(RDSFixtures.topSQL), "db.wait_event": .success(RDSFixtures.waits)]
+        s.resourceMetrics = .success(RDSFixtures.loadSeries(range: range, now: now))
+        return s
     }
 }

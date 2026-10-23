@@ -12,6 +12,10 @@ let package = Package(
         .executable(name: "tableextra-mcp", targets: ["tableextra-mcp"]),
         .library(name: "MTPCore", targets: ["MTPCore"]),
     ],
+    dependencies: [
+        // RDS / CloudWatch / Performance Insights for the AWS RDS screen (read-only calls).
+        .package(url: "https://github.com/awslabs/aws-sdk-swift.git", exact: "1.8.14"),
+    ],
     targets: [
         .systemLibrary(name: "CLibPQ", path: "Sources/CLibPQ"),
         .systemLibrary(name: "CLibSSH2", path: "Sources/CLibSSH2"),
@@ -27,7 +31,17 @@ let package = Package(
             ]
         ),
         .target(name: "MTPUIKit", dependencies: ["MTPCore"], path: "Sources/MTPUIKit"),
-        .target(name: "FeatureInsights", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureInsights"),
+        .target(
+            name: "FeatureInsights",
+            dependencies: [
+                "MTPCore", "MTPUIKit",
+                .product(name: "AWSRDS", package: "aws-sdk-swift"),
+                .product(name: "AWSCloudWatch", package: "aws-sdk-swift"),
+                .product(name: "AWSPI", package: "aws-sdk-swift"),
+                .product(name: "AWSSTS", package: "aws-sdk-swift"),
+            ],
+            path: "Sources/FeatureInsights"
+        ),
         .target(name: "FeatureSchemaTools", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureSchemaTools"),
         .target(name: "FeatureDataTransfer", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureDataTransfer"),
         .target(name: "FeatureAI", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureAI"),

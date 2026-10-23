@@ -64,7 +64,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module layout.
   - the MCP server and the Claude integration must stay read-only;
   - row data is sent to Claude only when the connection allows it.
 - **Keep secrets in the Keychain only.** Never write passwords or tokens to disk, logs or the history.
-- **Keep AWS access read-only.** Add any new AWS CLI call to the read-only allowlist in `AWSCLI.swift`, and never add one that mutates resources.
+- **Keep AWS access read-only.** Every AWS call goes through the `AWSRDSAPI` protocol (`FeatureInsights/RDS/AWSRDSAPI.swift`), which only has describe / get operations. Never add one that mutates resources, and never read `~/.aws` outside `AWSConfigFolder` (the user grants that folder explicitly).
 - **Add tests** for new logic, such as parsers, SQL generation and diffing, in the matching `Tests/` target.
 
 ## Commit messages
