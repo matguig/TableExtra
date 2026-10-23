@@ -1,0 +1,17 @@
+# SwiftPM / Xcode
+.build/
+build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+Package.resolved.bak
+
+# macOS
+.DS_Store
+
+# Local secrets / config
+.env
+.env.*
+*.p12
+*.pem
