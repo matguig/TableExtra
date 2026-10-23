@@ -2,6 +2,7 @@
 import PackageDescription
 
 let libpqLib = "/opt/homebrew/opt/libpq/lib"
+let libssh2Lib = "/opt/homebrew/opt/libssh2/lib"
 
 let package = Package(
     name: "TableExtra",
@@ -13,12 +14,13 @@ let package = Package(
     ],
     targets: [
         .systemLibrary(name: "CLibPQ", path: "Sources/CLibPQ"),
+        .systemLibrary(name: "CLibSSH2", path: "Sources/CLibSSH2"),
         .target(
             name: "MTPCore",
-            dependencies: ["CLibPQ"],
+            dependencies: ["CLibPQ", "CLibSSH2"],
             path: "Sources/MTPCore",
             linkerSettings: [
-                .unsafeFlags(["-L\(libpqLib)"]),
+                .unsafeFlags(["-L\(libpqLib)", "-L\(libssh2Lib)"]),
                 .linkedLibrary("sqlite3"),
                 .linkedFramework("Security"),
                 .linkedFramework("LocalAuthentication"),

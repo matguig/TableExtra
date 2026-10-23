@@ -21,10 +21,10 @@ public enum BackupEngine {
     }
 
     /// Runs `body` with the host/port to reach the server, through an SSH tunnel when the connection uses one.
-    public static func withEndpoint<T>(_ config: ConnectionConfig, log: (String) -> Void = { _ in },
+    public static func withEndpoint<T>(_ config: ConnectionConfig, secrets: ConnectionSecrets = ConnectionSecrets(), log: (String) -> Void = { _ in },
                                        _ body: (_ host: String?, _ port: Int?) async throws -> T) async throws -> T {
         guard config.ssh.enabled, config.driver == .postgres else { return try await body(nil, nil) }
-        let tunnel = SSHTunnel(ssh: config.ssh, remoteHost: config.host.isEmpty ? "127.0.0.1" : config.host, remotePort: config.effectivePort)
+        let tunnel = SSHTunnel(ssh: config.ssh, secrets: secrets, remoteHost: config.host.isEmpty ? "127.0.0.1" : config.host, remotePort: config.effectivePort)
         log("Opening SSH tunnel through \(config.ssh.user.isEmpty ? "" : config.ssh.user + "@")\(config.ssh.host)…")
         try await Task.detached { try tunnel.start() }.value
         log("Tunnel ready on 127.0.0.1:\(tunnel.localPort)")

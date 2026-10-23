@@ -98,18 +98,22 @@ public enum Keychain {
 
     static func databaseAccount(_ id: UUID) -> String { "\(id.uuidString).database" }
     static func sshAccount(_ id: UUID) -> String { "\(id.uuidString).ssh" }
+    static func sshKeyAccount(_ id: UUID) -> String { "\(id.uuidString).sshkey" }
 
     public static func secrets(for id: UUID) -> ConnectionSecrets {
-        ConnectionSecrets(password: get(account: databaseAccount(id)), sshPassword: get(account: sshAccount(id)))
+        ConnectionSecrets(password: get(account: databaseAccount(id)), sshPassword: get(account: sshAccount(id)),
+                          sshKeyPassphrase: get(account: sshKeyAccount(id)))
     }
 
     public static func store(_ secrets: ConnectionSecrets, for id: UUID) {
         set(secrets.password, account: databaseAccount(id))
         set(secrets.sshPassword, account: sshAccount(id))
+        set(secrets.sshKeyPassphrase, account: sshKeyAccount(id))
     }
 
     public static func removeSecrets(for id: UUID) {
         delete(account: databaseAccount(id))
         delete(account: sshAccount(id))
+        delete(account: sshKeyAccount(id))
     }
 }

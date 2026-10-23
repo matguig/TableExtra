@@ -47,11 +47,13 @@ public final class DBClient: @unchecked Sendable {
     }
 
     private func openIfNeeded() throws -> DatabaseDriver {
+        // A dropped SSH connection reopens on the same local port, so the driver's own reconnect finds it.
+        if let tunnel, !tunnel.isRunning { try tunnel.start() }
         if let driver { return driver }
         var host: String?
         var port: Int?
         if config.ssh.enabled && config.driver == .postgres {
-            let t = SSHTunnel(ssh: config.ssh, remoteHost: config.host.isEmpty ? "127.0.0.1" : config.host, remotePort: config.effectivePort)
+            let t = SSHTunnel(ssh: config.ssh, secrets: secrets, remoteHost: config.host.isEmpty ? "127.0.0.1" : config.host, remotePort: config.effectivePort)
             try t.start()
             tunnel = t
             host = "127.0.0.1"

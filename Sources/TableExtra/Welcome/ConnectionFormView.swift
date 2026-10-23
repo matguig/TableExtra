@@ -11,6 +11,7 @@ struct ConnectionFormView: View {
     @State private var showAdvanced = false
     @State private var extraOptionsText = ""
     @State private var portText = ""
+    @State private var hostKey: SSHKnownHosts.Entry?
 
     enum TestState: Equatable {
         case idle, running, ok(String), failed(String)
@@ -22,17 +23,22 @@ struct ConnectionFormView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    identity
-                    if draft.config.driver == .postgres { postgresFields } else { sqliteFields }
-                    safety
-                    claudeFields
-                    if draft.config.driver == .postgres { awsFields }
-                    if draft.config.driver == .postgres { sshFields }
-                    DisclosureGroup("Advanced", isExpanded: $showAdvanced) { advanced.padding(.top, 8) }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        identity
+                        if draft.config.driver == .postgres { postgresFields } else { sqliteFields }
+                        safety
+                        claudeFields
+                        if draft.config.driver == .postgres { awsFields.id("aws") }
+                        if draft.config.driver == .postgres { sshFields.id("ssh") }
+                        DisclosureGroup("Advanced", isExpanded: $showAdvanced) { advanced.padding(.top, 8) }
+                    }
+                    .padding(20)
                 }
-                .padding(20)
+                .onReceive(NotificationCenter.default.publisher(for: .mtpConnectionFormScroll)) { note in
+                    if let section = note.object as? String { proxy.scrollTo(section, anchor: .top) }
+                }
             }
             Divider()
             footer
@@ -254,19 +260,56 @@ struct ConnectionFormView: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Connect over SSH tunnel", isOn: $draft.config.ssh.enabled).font(.subheadline.weight(.semibold))
             if draft.config.ssh.enabled {
-                row("SSH host") { TextField("bastion.example.com", text: $draft.config.ssh.host) }
+                row("SSH host") { TextField("bastion.example.com or a ~/.ssh/config alias", text: $draft.config.ssh.host) }
                 row("SSH port") { TextField("22", value: $draft.config.ssh.port, format: .number.grouping(.never)).frame(width: 90) }
                 row("SSH user") { TextField("ec2-user", text: $draft.config.ssh.user) }
                 row("Private key") {
                     HStack {
-                        TextField("ssh-agent / ~/.ssh/config", text: $draft.config.ssh.privateKeyPath)
+                        TextField("Optional: ssh-agent and ~/.ssh keys otherwise", text: $draft.config.ssh.privateKeyPath)
                         Button("Choose…") { chooseKey() }
                     }
                 }
-                Text("Uses /usr/bin/ssh, so your ~/.ssh/config, agent and ProxyJump apply. Password authentication is not supported.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if !draft.config.ssh.privateKeyPath.isEmpty {
+                    row("Key passphrase") { SecureField("Only for an encrypted key", text: $draft.sshKeyPassphrase) }
+                }
+                row("SSH password") { SecureField("Optional, stored in the macOS Keychain", text: $draft.sshPassword) }
+                Text("""
+                    Built-in SSH client: no ssh process is launched. Without a private key it tries the password,                     then ~/.ssh/config IdentityFile keys, ssh-agent and ~/.ssh/id_* keys. HostName, User and Port from                     ~/.ssh/config apply; ProxyJump is not supported.
+                    """)
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let hostKey {
+                    HStack(spacing: DS.Space.s) {
+                        Image(systemName: "checkmark.shield").foregroundStyle(.secondary)
+                        Text("Trusted host key: \(hostKey.type) \(hostKey.fingerprint)")
+                            .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            .textSelection(.enabled)
+                        Spacer(minLength: 0)
+                        Button("Forget Host Key") { forgetHostKey() }
+                            .controlSize(.small)
+                            .help("Accept the server's current key on the next connection. Only do this if you know why the key changed.")
+                    }
+                }
             }
         }
+        .onAppear(perform: refreshHostKey)
+        .onChange(of: draft.config.ssh) { _, _ in refreshHostKey() }
+    }
+
+    /// The SSH server's saved key, looked up with ~/.ssh/config applied (HostName / Port).
+    private func sshHostAndPort() -> (host: String, port: Int)? {
+        guard draft.config.ssh.enabled, let e = try? SSHTunnel.endpoint(for: draft.config.ssh, secrets: ConnectionSecrets()) else { return nil }
+        return (e.host, e.port)
+    }
+
+    private func refreshHostKey() {
+        hostKey = sshHostAndPort().flatMap { SSHKnownHosts.shared.entry(host: $0.host, port: $0.port) }
+    }
+
+    private func forgetHostKey() {
+        guard let target = sshHostAndPort() else { return }
+        SSHKnownHosts.shared.forget(host: target.host, port: target.port)
+        refreshHostKey()
+        if case .failed = testState { testState = .idle }
     }
 
     private var advanced: some View {
@@ -339,14 +382,14 @@ struct ConnectionFormView: View {
     @discardableResult
     private func save() -> ConnectionConfig {
         let c = normalized()
-        ConnectionStore.shared.upsert(c, secrets: ConnectionSecrets(password: draft.password.isEmpty ? nil : draft.password))
+        ConnectionStore.shared.upsert(c, secrets: draft.secrets)
         return c
     }
 
     private func test() {
         testState = .running
         let c = normalized()
-        let secrets = ConnectionSecrets(password: draft.password.isEmpty ? nil : draft.password)
+        let secrets = draft.secrets
         Task {
             let started = Date()
             let client = DBClient(config: c, secrets: secrets, label: "test")
@@ -357,6 +400,7 @@ struct ConnectionFormView: View {
                 testState = .failed(error.localizedDescription)
             }
             client.close()
+            refreshHostKey()
         }
     }
 

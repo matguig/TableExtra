@@ -6,6 +6,8 @@ import Observation
 struct ConnectionDraft: Identifiable {
     var config: ConnectionConfig
     var password: String
+    var sshPassword = ""
+    var sshKeyPassphrase = ""
     var isNew: Bool
     var id: UUID { config.id }
 
@@ -16,7 +18,18 @@ struct ConnectionDraft: Identifiable {
     }
 
     static func edit(_ c: ConnectionConfig) -> ConnectionDraft {
-        ConnectionDraft(config: c, password: Keychain.secrets(for: c.id).password ?? "", isNew: false)
+        let secrets = Keychain.secrets(for: c.id)
+        return ConnectionDraft(config: c, password: secrets.password ?? "", sshPassword: secrets.sshPassword ?? "",
+                               sshKeyPassphrase: secrets.sshKeyPassphrase ?? "", isNew: false)
+    }
+
+    /// What the form saves to the Keychain; SSH secrets only when the connection uses SSH.
+    var secrets: ConnectionSecrets {
+        func value(_ s: String) -> String? { s.isEmpty ? nil : s }
+        let ssh = config.ssh.enabled
+        return ConnectionSecrets(password: value(password),
+                                 sshPassword: ssh ? value(sshPassword) : nil,
+                                 sshKeyPassphrase: ssh && !config.ssh.privateKeyPath.isEmpty ? value(sshKeyPassphrase) : nil)
     }
 }
 

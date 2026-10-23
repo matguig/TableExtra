@@ -62,6 +62,10 @@ final class DebugAutomation {
             }
         case "overlay":
             workspace?.overlay = arg == "palette" ? .commandPalette : .openAnything
+        case "editconnection":
+            workspace?.sheet = .editConnection
+        case "formscroll":
+            NotificationCenter.default.post(name: .mtpConnectionFormScroll, object: arg)
         case "dismiss":
             workspace?.overlay = nil
             workspace?.sheet = nil

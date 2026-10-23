@@ -128,7 +128,7 @@ public struct SSHConfig: Codable, Hashable, Sendable {
     public var host: String = ""
     public var port: Int = 22
     public var user: String = ""
-    /// Path to a private key; empty means ssh-agent / ~/.ssh/config defaults.
+    /// Path to a private key; empty means ~/.ssh/config IdentityFile, ssh-agent, then ~/.ssh/id_* keys.
     public var privateKeyPath: String = ""
 
     public init() {}
@@ -316,10 +316,13 @@ public struct ConnectionGroup: Codable, Identifiable, Hashable, Sendable {
 public struct ConnectionSecrets: Sendable {
     public var password: String?
     public var sshPassword: String?
+    /// Passphrase of `SSHConfig.privateKeyPath`, when the key is encrypted.
+    public var sshKeyPassphrase: String?
 
-    public init(password: String? = nil, sshPassword: String? = nil) {
+    public init(password: String? = nil, sshPassword: String? = nil, sshKeyPassphrase: String? = nil) {
         self.password = password
         self.sshPassword = sshPassword
+        self.sshKeyPassphrase = sshKeyPassphrase
     }
 }
 

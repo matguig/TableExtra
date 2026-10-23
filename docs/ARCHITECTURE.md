@@ -5,9 +5,11 @@ Native macOS app (Swift 6 toolchain, Swift 5 language mode, macOS 14+), built wi
 ```
 Sources/
   CLibPQ/              system module for Homebrew libpq (bundled into the .app by scripts/build-app.sh)
+  CLibSSH2/            system module for Homebrew libssh2 (bundled the same way; shares libpq's OpenSSL)
   MTPCore/             no UI. Drivers (PostgreSQL via libpq, SQLite), DBClient (async + serial queue),
                        introspection, SQL tokenizer/splitter/classifier/formatter, filters, change sets,
-                       stores (connections.json, Keychain, history.sqlite, favorites.json), TablePlus importer
+                       stores (connections.json, Keychain, history.sqlite, favorites.json), TablePlus importer,
+                       SSH/: built-in SSH tunnel (libssh2: keys, agent, password, ~/.ssh/config, known hosts)
   MTPUIKit/            shared UI: WorkspaceContext protocol, DataGridView (AppKit grid), ResultTableView,
                        CodeView + SQLHighlighter, colors, formatting, file panels,
                        DesignSystem.swift (DS tokens, Tag, Card, PaneHeader, ToolStrip/ToolButton, StatusBar, EmptyState, Banner, KeyCap)
@@ -26,6 +28,11 @@ Rules:
 - Every DB access goes through `DBClient` (never touch a driver from the main thread).
 - Writes coming from the UI call `WorkspaceContext.confirmWrite` first (safety levels, Touch ID, read-only).
 - Secrets only in the Keychain (service `fr.koa-dev.TableExtra`).
+- No external processes for core features: the SSH tunnel runs in-process (`SSHTunnel`), never `/usr/bin/ssh`.
+- SSH host keys: ~/.ssh/known_hosts when readable, otherwise trust on first use in `known_hosts.json`; a changed key is refused.
 - Data lives in `~/Library/Application Support/TableExtra` (override with `TABLEEXTRA_HOME`).
 
 Tests: `MTP_TEST_PG="127.0.0.1:55432:mtp:mtp_pass:shop" swift test` (integration tests skip without the env var).
+SSH tunnel tests also need a disposable sshd that can reach that database: `MTP_TEST_SSH="host:port:user:/keys/dir"`
+(see `Tests/MTPCoreTests/SSHTests.swift` for the expected key files), plus optionally `MTP_TEST_SSH_PASSWORD` and
+`MTP_TEST_SSHD_PID`.

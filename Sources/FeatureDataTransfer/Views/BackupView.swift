@@ -73,11 +73,12 @@ class ProcessTaskModel: ObservableObject {
         startedAt = Date()
         endedAt = nil
         let config = connection
+        let secrets = secrets
         let password = secrets.password
         let pending = PendingLines()
         task = Task {
             do {
-                let outcome = try await BackupEngine.withEndpoint(config, log: { line in Task { @MainActor in self.log.append(line) } }) { host, port in
+                let outcome = try await BackupEngine.withEndpoint(config, secrets: secrets, log: { line in Task { @MainActor in self.log.append(line) } }) { host, port in
                     let target = PGConnectionTarget(config: config, password: password, database: database, host: host, port: port)
                     let runner = make(target)
                     await MainActor.run {

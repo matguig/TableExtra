@@ -41,7 +41,7 @@ This project was vibe-coded, and AI-assisted PRs are welcome too. You are still 
 ## Development setup
 
 ```bash
-brew install libpq
+brew install libpq libssh2
 swift build
 swift test
 scripts/build-app.sh && open build/TableExtra.app

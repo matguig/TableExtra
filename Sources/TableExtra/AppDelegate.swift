@@ -212,4 +212,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MTPActions {
 
 extension Notification.Name {
     static let mtpFontSizeChanged = Notification.Name("MTPFontSizeChanged")
+    /// Scrolls the open connection form to a section ("ssh", "aws"…); used by automation.
+    static let mtpConnectionFormScroll = Notification.Name("MTPConnectionFormScroll")
 }

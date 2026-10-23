@@ -34,7 +34,8 @@ So:
 ## Features
 
 ### Database client
-- PostgreSQL (through libpq, with TLS and SSH tunnels) and SQLite.
+- PostgreSQL (through libpq, with TLS) and SQLite.
+- Built-in SSH tunnels with no `ssh` process: Ed25519, ECDSA and RSA keys (including encrypted ones), ssh-agent, passwords, `~/.ssh/config` host aliases, and host key verification.
 - Welcome window with saved connections, environment tags (DEV / STAGING / PROD) and recent connections.
 - Sidebar with pinned objects, search, and automatic grouping of tables by name prefix and date series.
 - Fast AppKit data grid: inline editing, filters (`WHERE` builder or natural language), sorting and pagination.
@@ -77,7 +78,7 @@ So:
 
 - macOS 14 (Sonoma) or later, on Apple Silicon.
 - Xcode 16 or the Swift 6 toolchain.
-- Homebrew `libpq`: `brew install libpq`.
+- Homebrew `libpq` and `libssh2`: `brew install libpq libssh2`.
 - Optional:
   - [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`) for the AI features;
   - the AWS CLI v2 for RDS monitoring;
