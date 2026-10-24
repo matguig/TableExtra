@@ -56,7 +56,7 @@ So:
 ### Data transfer
 - Export to CSV, TSV, JSON, SQL and Markdown.
 - CSV import with encoding detection and type inference.
-- `pg_dump` / `pg_restore` backup and restore.
+- `pg_dump` / `pg_restore` backup and restore, including `.sql` and `.sql.gz` scripts. The app ships its own PostgreSQL 18 client tools, so nothing else needs to be installed, and they also restore into older servers.
 - One-click import of your TablePlus connections.
 
 ### Claude AI everywhere
@@ -80,18 +80,16 @@ So:
 - macOS 14 (Sonoma) or later, on Apple Silicon.
 - Xcode 16 or the Swift 6 toolchain.
 - Homebrew `libpq` and `libssh2`: `brew install libpq libssh2`.
-- Optional:
-  - [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`) for the AI features;
-  - `pg_dump` / `pg_restore` for backups.
+- Optional: [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`) for the AI features.
 
 ## Build and run
 
-The first build downloads the AWS SDK for Swift (about 2.5 GB of git history) and takes a few minutes. Later builds are incremental.
+The first build downloads the AWS SDK for Swift (about 2.5 GB of git history) and the PostgreSQL source code, so it takes a few minutes. Later builds are incremental.
 
 ```bash
 git clone https://github.com/matguig/TableExtra.git
 cd TableExtra
-scripts/build-app.sh            # builds build/TableExtra.app (libpq bundled inside)
+scripts/build-app.sh            # builds build/TableExtra.app (libpq, pg_dump, pg_restore and psql bundled inside)
 open build/TableExtra.app
 
 scripts/build-app.sh --install  # optional: also copies the app to /Applications

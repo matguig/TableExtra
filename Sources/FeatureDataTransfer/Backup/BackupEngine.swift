@@ -11,11 +11,18 @@ public enum BackupEngine {
         ProcessRunner(executable: tool.url, arguments: target.arguments() + options.pgRestoreArguments(input: input.path), environment: target.environment())
     }
 
-    /// Plain scripts run through psql; gzip-compressed ones are piped through gunzip.
-    public static func psql(tool: PGTool, target: PGConnectionTarget, options: PGRestoreOptions, input: URL, format: BackupFileFormat) -> ProcessRunner {
-        if format == .gzipPlain {
+    /// Plain scripts run through psql. Gzip-compressed ones are decompressed in-process into psql's stdin; so are scripts
+    /// for a server older than 17, without pg_dump 17+'s `SET transaction_timeout` line.
+    public static func psql(tool: PGTool, target: PGConnectionTarget, options: PGRestoreOptions, input: URL, format: BackupFileFormat,
+                            serverMajor: Int? = nil) -> ProcessRunner {
+        let gzip = format == .gzipPlain
+        let skip = serverMajor.map { $0 > 0 && $0 < 17 } ?? false
+        if gzip || skip {
+            let feeder = ProcessRunner.StdinFeeder(label: ScriptFeed.label(input, gzip: gzip, skipTransactionTimeout: skip)) { fd in
+                try ScriptFeed.stream(input, gzip: gzip, skipTransactionTimeout: skip, to: fd)
+            }
             return ProcessRunner(executable: tool.url, arguments: target.arguments() + options.psqlArguments(input: nil), environment: target.environment(),
-                                 stdinProducer: (URL(fileURLWithPath: "/usr/bin/gunzip"), ["-c", input.path]))
+                                 stdinFeeder: feeder)
         }
         return ProcessRunner(executable: tool.url, arguments: target.arguments() + options.psqlArguments(input: input.path), environment: target.environment())
     }

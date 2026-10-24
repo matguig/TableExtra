@@ -249,9 +249,17 @@ final class DatabaseTransferTests: XCTestCase {
         let dumpedPlain = try await BackupEngine.pgDump(tool: dump, target: source, options: plainOptions, output: plain).run { _, _ in }
         XCTAssertTrue(dumpedPlain.succeeded)
         XCTAssertEqual(BackupFileFormat.detect(plain), .plain)
+        // The same script gzip-compressed, restored through the in-process gunzip.
+        let gz = dir.appendingPathComponent("shop.sql.gz")
+        let gzip = Process()
+        gzip.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
+        gzip.arguments = ["-k", plain.path]
+        try gzip.run()
+        gzip.waitUntilExit()
+        XCTAssertEqual(BackupFileFormat.detect(gz), .gzipPlain)
 
         // Restore each into a brand-new database, compare, then drop it.
-        for (format, file) in [(BackupFileFormat.custom, archive), (.plain, plain)] {
+        for (format, file) in [(BackupFileFormat.custom, archive), (.plain, plain), (.gzipPlain, gz)] {
             let dbName = "mtp_restore_\(randomSuffix())"
             _ = try await admin.query("CREATE DATABASE \(dbName)")
             do {
@@ -272,7 +280,7 @@ final class DatabaseTransferTests: XCTestCase {
                 let b = try await restored.query(counts)
                 XCTAssertEqual(a.rows, b.rows, "\(format)")
                 let audit = try await restored.query("SELECT to_regclass('public.audit_log') IS NULL")
-                XCTAssertEqual(audit.rows[0][0], format == .plain ? "t" : "f", "exclude-table honoured")
+                XCTAssertEqual(audit.rows[0][0], format == .custom ? "f" : "t", "exclude-table honoured")
                 restored.close()
                 try await Task.sleep(nanoseconds: 200_000_000)
             } catch {

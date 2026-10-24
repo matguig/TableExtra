@@ -8,20 +8,28 @@ public struct PGTool: Identifiable, Hashable, Sendable {
     /// "17.2"
     public var version: String
     public var major: Int
+    /// Shipped inside TableExtra.app.
+    public var isBundled = false
 
     public var id: String { url.path }
-    public var displayName: String { "\(name) \(version) — \((url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)" }
+    public var displayName: String {
+        "\(name) \(version) — \(isBundled ? "built-in" : (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)"
+    }
 }
 
 public enum PGToolLocator {
     /// UserDefaults key holding a directory searched before the defaults.
     public static let directoryDefaultsKey = "pgDumpDirectory"
+    /// pg_dump, pg_restore and psql copied into the app by scripts/build-app.sh. Absent when running from `swift build`.
+    nonisolated(unsafe) public static var bundledDirectory = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers").path
 
+    /// The custom folder, then the built-in tools, then the usual install locations.
     public static func searchDirectories(defaults: UserDefaults = .standard) -> [String] {
         var dirs: [String] = []
         if let custom = defaults.string(forKey: directoryDefaultsKey), !custom.isEmpty {
             dirs.append((custom as NSString).expandingTildeInPath)
         }
+        dirs.append(bundledDirectory)
         dirs += ["/opt/homebrew/opt/libpq/bin", "/opt/homebrew/bin", "/usr/local/opt/libpq/bin", "/usr/local/bin"]
         let app = "/Applications/Postgres.app/Contents/Versions"
         dirs.append("\(app)/latest/bin")
@@ -42,18 +50,21 @@ public enum PGToolLocator {
             guard FileManager.default.isExecutableFile(atPath: url.path) else { continue }
             guard seenTargets.insert(url.resolvingSymlinksInPath().path).inserted else { continue }
             guard let v = version(of: url) else { continue }
-            out.append(PGTool(name: tool, url: url, version: v.0, major: v.1))
+            out.append(PGTool(name: tool, url: url, version: v.0, major: v.1, isBundled: dir == bundledDirectory))
         }
         return out
     }
 
-    /// The custom directory wins; then the server's own major version (newer tools can emit settings an older
-    /// server rejects, e.g. pg_dump 17.0–17.2 writes `SET transaction_timeout`); then the oldest newer copy; else the first found.
+    /// The custom directory wins; then the built-in copy unless the server is newer than it (it is the newest client, reads
+    /// every archive and script version, and is patched to restore into older servers); then the server's own major
+    /// version (a stock pg_dump 17+ writes `SET transaction_timeout`, which older servers reject); then the oldest newer
+    /// copy; else the first found.
     public static func preferred(_ tool: String, serverMajor: Int?, among list: [PGTool], defaults: UserDefaults = .standard) -> PGTool? {
         if let custom = defaults.string(forKey: directoryDefaultsKey), !custom.isEmpty,
            let t = list.first(where: { $0.url.deletingLastPathComponent().path == (custom as NSString).expandingTildeInPath }) {
             return t
         }
+        if let t = list.first(where: \.isBundled), t.major >= (serverMajor ?? 0) { return t }
         if let serverMajor {
             if let t = list.first(where: { $0.major == serverMajor }) { return t }
             if let t = list.filter({ $0.major > serverMajor }).min(by: { $0.major < $1.major }) { return t }

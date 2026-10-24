@@ -55,12 +55,12 @@ class ProcessTaskModel: ObservableObject {
     func toolWarning(_ tool: PGTool?, name: String) -> String? {
         guard isPostgres else { return nil }
         guard let tool else {
-            return "\(name) was not found. Install it with `brew install libpq`, or set the folder with "
+            return "\(name) was not found (this build has no built-in copy). Install it with `brew install libpq`, or set the folder with "
                 + "`defaults write fr.koa-dev.TableExtra \(PGToolLocator.directoryDefaultsKey) /path/to/bin`."
         }
         if let serverMajor, tool.major < serverMajor {
             return "\(name) \(tool.version) is older than the server (PostgreSQL \(serverVersion ?? String(serverMajor))); "
-                + "it will refuse to run. Install a newer client (brew install libpq)."
+                + "it will refuse to run. Update TableExtra or install a newer client (brew install libpq)."
         }
         return nil
     }

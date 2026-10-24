@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Builds TableExtra.app: release binaries, Info.plist, icon, bundled libpq + deps, ad-hoc signature.
+# Builds TableExtra.app: release binaries, Info.plist, icon, bundled libpq + deps, pg_dump / pg_restore / psql
+# (Contents/Helpers, built by scripts/build-pg-tools.sh), signature.
 #   scripts/build-app.sh            -> build/TableExtra.app
 #   scripts/build-app.sh --install  -> also copies it to /Applications
 set -euo pipefail
@@ -96,7 +97,16 @@ bundle_deps() {
     install_name_tool -change "$dep" "@rpath/$name" "$target" 2>/dev/null
   done
 }
-for exe in "$APP/Contents/MacOS/TableExtra" "$APP/Contents/MacOS/tableextra-mcp"; do
+# PostgreSQL client tools for Backup / Restore, so users need no local install (and a sandboxed build can run them).
+PGBIN="$("$ROOT/scripts/build-pg-tools.sh")"
+HELPERS="$APP/Contents/Helpers"
+mkdir -p "$HELPERS"
+for tool in pg_dump pg_restore psql; do
+  cp "$PGBIN/$tool" "$HELPERS/$tool"
+  chmod u+w "$HELPERS/$tool"
+done
+echo "  $("$PGBIN/pg_dump" --version)"
+for exe in "$APP/Contents/MacOS/TableExtra" "$APP/Contents/MacOS/tableextra-mcp" "$HELPERS"/*(N); do
   bundle_deps "$exe"
   install_name_tool -add_rpath "@executable_path/../Frameworks" "$exe" 2>/dev/null || true
 done
@@ -116,11 +126,14 @@ fi
 IDENTITY="${IDENTITY:--}"
 echo "→ codesign (${IDENTITY})"
 for lib in "$FW"/*.dylib(N); do codesign --force --sign "$IDENTITY" --timestamp=none "$lib" >/dev/null 2>&1; done
+for tool in "$HELPERS"/*(N); do
+  codesign --force --sign "$IDENTITY" --timestamp=none --identifier "fr.koa-dev.TableExtra.${tool:t}" "$tool"
+done
 codesign --force --sign "$IDENTITY" --timestamp=none --identifier fr.koa-dev.TableExtra.mcp "$APP/Contents/MacOS/tableextra-mcp"
 codesign --force --sign "$IDENTITY" --timestamp=none --identifier fr.koa-dev.TableExtra "$APP"
 
 # Sanity check: no Homebrew paths left.
-if otool -L "$APP/Contents/MacOS/TableExtra" "$FW"/*.dylib | grep -q /opt/homebrew; then
+if otool -L "$APP/Contents/MacOS/TableExtra" "$HELPERS"/* "$FW"/*.dylib | grep -q /opt/homebrew; then
   echo "warning: Homebrew paths still referenced" >&2
 fi
 echo "✓ $APP ($(du -sh "$APP" | cut -f1))"

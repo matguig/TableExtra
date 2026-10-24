@@ -16,7 +16,9 @@ Sources/
   FeatureInsights/     PostgreSQL insights dashboard, process list, EXPLAIN visualiser,
                        AWS RDS dashboard (AWS SDK for Swift: RDS, CloudWatch, Performance Insights, STS)
   FeatureSchemaTools/  schema diff + migration SQL, Kysely/TypeScript/Zod codegen, ER diagram
-  FeatureDataTransfer/ export (CSV/TSV/JSON/SQL/Markdown), CSV import, pg_dump backup/restore, TablePlus import UI
+  FeatureDataTransfer/ export (CSV/TSV/JSON/SQL/Markdown), CSV import, pg_dump backup/restore, TablePlus import UI.
+                       pg_dump, pg_restore and psql ship in Contents/Helpers (scripts/build-pg-tools.sh: PostgreSQL
+                       source, no readline, one patch for older servers); .sql.gz is decompressed in-process
   FeatureAI/           Claude assistant (via the local `claude` CLI), MCP settings
   TableExtra/         the app: menus, welcome window, workspace window, sidebar, tabs, data/structure/query tabs
   tableextra-mcp/     stdio MCP server exposing saved connections to Claude Code (read-only by default)

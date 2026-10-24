@@ -74,11 +74,11 @@ final class RestoreModel: ProcessTaskModel {
             return
         }
         guard let tool, let format = fileFormat else { return }
-        let options = options, db = targetDatabase
+        let options = options, db = targetDatabase, serverMajor = serverMajor
         runProcess(database: db, make: { target in
             format.usesPgRestore
                 ? BackupEngine.pgRestore(tool: tool, target: target, options: options, input: file)
-                : BackupEngine.psql(tool: tool, target: target, options: options, input: file, format: format)
+                : BackupEngine.psql(tool: tool, target: target, options: options, input: file, format: format, serverMajor: serverMajor)
         }, onSuccess: {
             "Restored \(file.lastPathComponent) into \(db). Refresh the sidebar to see the changes."
         })
