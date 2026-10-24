@@ -66,6 +66,6 @@ final class AuditLog: @unchecked Sendable {
 }
 
 /// Diagnostics go to stderr: stdout carries JSON-RPC only.
-func stderrLog(_ message: String) {
+public func stderrLog(_ message: String) {
     FileHandle.standardError.write(Data("[tableextra-mcp] \(message)\n".utf8))
 }

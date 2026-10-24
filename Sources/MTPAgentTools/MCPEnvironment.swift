@@ -2,7 +2,7 @@ import Foundation
 import MTPCore
 
 /// Everything the tools need from the outside world; tests swap in temporary stores.
-struct MCPEnvironment: @unchecked Sendable {
+public struct MCPEnvironment: @unchecked Sendable {
     /// Saved connections, re-read on every call so edits made in the app show up without a restart.
     var connections: @Sendable () -> [ConnectionConfig]
     var secrets: @Sendable (ConnectionConfig) -> ConnectionSecrets
@@ -10,13 +10,26 @@ struct MCPEnvironment: @unchecked Sendable {
     var history: HistoryStore?
     var statementTimeout = "30s"
     var writeTimeout = "120s"
+    /// `source` of the query-history entries the tools write.
+    var historySource = "mcp"
 
-    static func live() -> MCPEnvironment {
+    public static func live() -> MCPEnvironment {
+        // Set by the in-app Claude assistant (Claude Code backend): only that connection, read-only.
+        make(only: ProcessInfo.processInfo.environment["TABLEEXTRA_MCP_ONLY"].flatMap(UUID.init(uuidString:)))
+    }
+
+    /// The in-app assistant calling the tools in-process (API backend): only `connectionID`, read-only, whatever its
+    /// MCP setting, and only while the connection lets Claude query.
+    public static func assistant(connectionID: UUID) -> MCPEnvironment {
+        var env = make(only: connectionID)
+        env.historySource = "claude"
+        return env
+    }
+
+    static func make(only: UUID?) -> MCPEnvironment {
         let store = ConnectionStore.shared
         let env = ProcessInfo.processInfo.environment
         let skipKeychain = (env["TABLEEXTRA_MCP_NO_KEYCHAIN"] ?? env["MYTABLEPLUS_MCP_NO_KEYCHAIN"]) == "1"
-        // Set by the in-app Claude assistant: expose only that connection, read-only, whatever its MCP setting.
-        let only = env["TABLEEXTRA_MCP_ONLY"].flatMap(UUID.init(uuidString:))
         return MCPEnvironment(
             connections: {
                 store.reload()

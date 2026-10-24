@@ -2,9 +2,9 @@ import Foundation
 import MTPCore
 
 /// JSON-RPC 2.0 / MCP request handling, independent of the transport (tests call it directly).
-final class MCPServer: @unchecked Sendable {
+public final class MCPServer: @unchecked Sendable {
     static let name = "tableextra"
-    static let version = "1.0.0"
+    public static let version = "1.0.0"
     /// Newest first; the client's version is echoed when listed here.
     static let supportedProtocolVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
@@ -30,7 +30,7 @@ final class MCPServer: @unchecked Sendable {
 
     init(tools: MCPTools) { self.tools = tools }
 
-    convenience init(environment: MCPEnvironment) {
+    public convenience init(environment: MCPEnvironment) {
         self.init(tools: MCPTools(environment: environment))
     }
 
@@ -137,7 +137,7 @@ final class MCPServer: @unchecked Sendable {
 
 /// Newline-delimited JSON-RPC over stdin/stdout. Reads with a blocking loop; each request runs in its own task
 /// so a slow query never blocks `ping` or a cancellation.
-final class StdioTransport: @unchecked Sendable {
+public final class StdioTransport: @unchecked Sendable {
     let server: MCPServer
     private let output: FileHandle
     private let writeLock = NSLock()
@@ -145,13 +145,13 @@ final class StdioTransport: @unchecked Sendable {
     private var running: [JSONValue: Task<Void, Never>] = [:]
     private let group = DispatchGroup()
 
-    init(server: MCPServer, output: FileHandle = .standardOutput) {
+    public init(server: MCPServer, output: FileHandle = .standardOutput) {
         self.server = server
         self.output = output
     }
 
     /// Returns at end of input, after in-flight requests have answered.
-    func run() {
+    public func run() {
         while let line = readLine(strippingNewline: true) {
             receive(line)
         }

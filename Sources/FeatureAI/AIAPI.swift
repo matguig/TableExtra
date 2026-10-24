@@ -14,7 +14,7 @@ public protocol AIEditorBridge: AnyObject {
     func insertSQL(_ sql: String, replaceAll: Bool)
 }
 
-/// Claude (through the local `claude` CLI) with schema context. Never executes SQL.
+/// Claude (local `claude` CLI or Claude API, see AIBackend) with schema context. Never executes SQL.
 public enum AIService {
     /// Suggests a corrected statement for a failed query.
     @MainActor
@@ -36,7 +36,7 @@ public enum AIService {
         Reply with the condition alone in one ```sql block — no SELECT, no WHERE keyword, no trailing semicolon.
         """
         let answer = try await ask(.custom(title: "Filter", prompt: prompt, attachments: [], focus: table), context: context,
-                                   model: "haiku", useTools: false)
+                                   model: "haiku", useTools: false, effort: "low")
         guard var condition = answer.sql?.trimmingCharacters(in: .whitespacesAndNewlines), !condition.isEmpty else {
             throw ClaudeCLIError.invalidOutput(answer.text)
         }

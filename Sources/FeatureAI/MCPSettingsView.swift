@@ -20,6 +20,8 @@ public struct MCPSettingsView: View {
     @State private var auditFilter = ""
 
     private let binary = MCPInstaller.binaryURL()
+    /// The API build never runs the `claude` CLI: it only shows the command to copy.
+    private let usesCLI = AIBackend.current == .cli
 
     public init() {}
 
@@ -33,7 +35,7 @@ public struct MCPSettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             reloadLocal()
-            refreshStatus()
+            if usesCLI { refreshStatus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mtpConnectionsDidChange)) { _ in reloadLocal() }
         .confirmationDialog(pending == .add ? "Add TableExtra to Claude Code?" : "Remove TableExtra from Claude Code?",
@@ -59,28 +61,32 @@ public struct MCPSettingsView: View {
             if !FileManager.default.isExecutableFile(atPath: binary.path) {
                 Banner(.warning, "The binary is missing at this path. Build it with `swift build --product tableextra-mcp`.")
             }
-            LabeledContent("Claude Code") {
-                HStack(spacing: DS.Space.s) {
-                    if busy { ProgressView().controlSize(.small) }
-                    switch installed {
-                    case .some(true): Tag("INSTALLED", color: .systemGreen, systemImage: "checkmark")
-                    case .some(false): Tag("NOT INSTALLED", color: .systemGray)
-                    case .none: Tag("UNKNOWN", color: .systemGray, style: .outline)
+            if usesCLI {
+                LabeledContent("Claude Code") {
+                    HStack(spacing: DS.Space.s) {
+                        if busy { ProgressView().controlSize(.small) }
+                        switch installed {
+                        case .some(true): Tag("INSTALLED", color: .systemGreen, systemImage: "checkmark")
+                        case .some(false): Tag("NOT INSTALLED", color: .systemGray)
+                        case .none: Tag("UNKNOWN", color: .systemGray, style: .outline)
+                        }
                     }
                 }
-            }
-            if let status, !status.isEmpty {
-                Text(status).font(DS.Typo.monoSmall).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(8)
+                if let status, !status.isEmpty {
+                    Text(status).font(DS.Typo.monoSmall).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(8)
+                }
             }
             VStack(alignment: .leading, spacing: DS.Space.m) {
                 CodeSnippet(text: MCPInstaller.displayCommand(MCPInstaller.addArguments(binaryPath: binary.path)), copyLabel: "Copy command")
-                HStack(spacing: DS.Space.s) {
-                    Button("Add to Claude Code…") { pending = .add }.disabled(busy)
-                    Button("Remove…") { pending = .remove }.disabled(busy || installed == false)
-                    Spacer(minLength: DS.Space.s)
-                    Button("Refresh", action: refreshStatus).disabled(busy)
+                if usesCLI {
+                    HStack(spacing: DS.Space.s) {
+                        Button("Add to Claude Code…") { pending = .add }.disabled(busy)
+                        Button("Remove…") { pending = .remove }.disabled(busy || installed == false)
+                        Spacer(minLength: DS.Space.s)
+                        Button("Refresh", action: refreshStatus).disabled(busy)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .fixedSize(horizontal: false, vertical: true)
             }
             if let lastOutput {
                 Text(lastOutput).font(DS.Typo.monoSmall).textSelection(.enabled).lineLimit(6)
@@ -88,7 +94,8 @@ public struct MCPSettingsView: View {
         } header: {
             Text("tableextra-mcp")
         } footer: {
-            SettingsFootnote("Gives Claude Code read-only schema and query tools on your saved connections (per-connection access below). Writes are refused on production and staging. Every call is logged.")
+            SettingsFootnote("Gives Claude Code read-only schema and query tools on your saved connections (per-connection access below). Writes are refused on production and staging. Every call is logged."
+                + (usesCLI ? "" : " Run the command above in a terminal to add it to Claude Code."))
         }
     }
 

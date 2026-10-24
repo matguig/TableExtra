@@ -1,9 +1,23 @@
 #!/bin/zsh
 # Builds TableExtra.app: release binaries, Info.plist, icon, bundled libpq + deps, pg_dump / pg_restore / psql
 # (Contents/Helpers, built by scripts/build-pg-tools.sh), signature.
-#   scripts/build-app.sh            -> build/TableExtra.app
-#   scripts/build-app.sh --install  -> also copies it to /Applications
+#   scripts/build-app.sh                -> build/TableExtra.app, Claude through the local Claude Code CLI
+#   scripts/build-app.sh --ai api       -> Claude through the Claude API with the user's key (Keychain)
+#   scripts/build-app.sh --install      -> also copies it to /Applications
+# AI_BACKEND=cli|api works like --ai.
 set -euo pipefail
+
+AI_BACKEND="${AI_BACKEND:-cli}"
+INSTALL=0
+while (( $# )); do
+  case "$1" in
+    --ai) AI_BACKEND="${2:-}"; shift 2 ;;
+    --ai=*) AI_BACKEND="${1#--ai=}"; shift ;;
+    --install) INSTALL=1; shift ;;
+    *) echo "usage: $0 [--ai cli|api] [--install]" >&2; exit 2 ;;
+  esac
+done
+[[ "$AI_BACKEND" == cli || "$AI_BACKEND" == api ]] || { echo "error: --ai must be cli or api" >&2; exit 2; }
 
 ROOT="${0:A:h:h}"
 cd "$ROOT"
@@ -52,6 +66,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSupportsAutomaticTermination</key><false/>
   <key>NSLocalNetworkUsageDescription</key><string>TableExtra connects to databases on your local network.</string>
   <key>NSHumanReadableCopyright</key><string>TableExtra contributors</string>
+  <key>TEAIBackend</key><string>${AI_BACKEND}</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
@@ -136,9 +151,9 @@ codesign --force --sign "$IDENTITY" --timestamp=none --identifier fr.koa-dev.Tab
 if otool -L "$APP/Contents/MacOS/TableExtra" "$HELPERS"/* "$FW"/*.dylib | grep -q /opt/homebrew; then
   echo "warning: Homebrew paths still referenced" >&2
 fi
-echo "✓ $APP ($(du -sh "$APP" | cut -f1))"
+echo "✓ $APP ($(du -sh "$APP" | cut -f1), Claude: $AI_BACKEND)"
 
-if [[ "${1:-}" == "--install" ]]; then
+if (( INSTALL )); then
   DEST="/Applications/TableExtra.app"
   osascript -e 'tell application "TableExtra" to quit' >/dev/null 2>&1 || true
   rm -rf "$DEST"

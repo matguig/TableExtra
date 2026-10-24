@@ -1,4 +1,5 @@
 import Foundation
+import MTPAgentTools
 import MTPCore
 
 // tableextra-mcp: stdio MCP server over the connections saved in TableExtra.

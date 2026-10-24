@@ -3,7 +3,7 @@ import MTPCore
 import MTPUIKit
 import SwiftUI
 
-/// Settings → AI (Claude CLI path, model).
+/// Settings → AI (Claude CLI path or API key, depending on the build's backend; model).
 public struct AISettingsView: View {
     @AppStorage(AISettings.claudePathKey) private var claudePath = ""
     @AppStorage(AISettings.defaultModelKey) private var defaultModel = "sonnet"
@@ -15,40 +15,27 @@ public struct AISettingsView: View {
     @State private var testing = false
     @State private var testResult: (ok: Bool, message: String)?
     @State private var testTask: Task<Void, Never>?
+    @State private var keyDraft = ""
+    @State private var storedKey: String?
+    private let backend = AIBackend.current
 
     public init() {}
 
     public var body: some View {
         Form {
-            Section {
-                LabeledContent("Claude CLI") {
-                    HStack(spacing: DS.Space.s) {
-                        TextField("Claude CLI", text: $claudePath, prompt: Text(detected ?? "Auto-detect"))
-                            .labelsHidden()
-                            .multilineTextAlignment(.leading)
-                            .font(DS.Typo.mono)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Browse…", action: browse).fixedSize()
-                        Button("Detect", action: detect).disabled(detecting).fixedSize()
-                    }
-                }
-                LabeledContent("Status") { cliStatus }
-            } header: {
-                Text("Claude Code")
-            } footer: {
-                SettingsFootnote("The assistant runs your local `claude` CLI with your Claude Code login (no API key), without tools and without saving sessions.")
-            }
+            if backend == .api { apiKeySection } else { cliSection }
 
             Section("Model") {
                 Picker("Default model", selection: $defaultModel) {
-                    ForEach(ClaudeCLI.modelAliases, id: \.self) { Text($0.capitalized).tag($0) }
+                    ForEach(AIModels.aliases, id: \.self) { Text(AIModels.displayName($0)).tag($0) }
                 }
                 LabeledContent("Connection") {
                     HStack(spacing: DS.Space.m) {
                         if let r = testResult {
                             StatusLine(ok: r.ok, text: r.message)
                         } else if !testing {
-                            Text("Sends a one-word prompt to check the CLI and login.").font(DS.Typo.caption).foregroundStyle(.secondary)
+                            Text(backend == .api ? "Sends a one-word prompt to check the API key." : "Sends a one-word prompt to check the CLI and login.")
+                                .font(DS.Typo.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DS.Space.s)
                         if testing {
@@ -72,7 +59,75 @@ public struct AISettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { if detected == nil { detect() } }
+        .onAppear {
+            if backend == .api {
+                storedKey = AnthropicAPIKey.value
+            } else if detected == nil {
+                detect()
+            }
+        }
+    }
+
+    private var apiKeySection: some View {
+        Section {
+            LabeledContent("API key") {
+                HStack(spacing: DS.Space.s) {
+                    SecureField("API key", text: $keyDraft, prompt: Text(storedKey.map(AnthropicAPIKey.masked) ?? "sk-ant-…"))
+                        .labelsHidden()
+                        .font(DS.Typo.mono)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(saveKey)
+                    Button("Save", action: saveKey).disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty).fixedSize()
+                    Button("Remove", role: .destructive) {
+                        AnthropicAPIKey.save(nil)
+                        storedKey = nil
+                        testResult = nil
+                    }
+                    .disabled(storedKey == nil).fixedSize()
+                }
+            }
+            LabeledContent("Status") {
+                if let storedKey {
+                    StatusLine(ok: true, text: "Stored in the Keychain (\(AnthropicAPIKey.masked(storedKey)))", mono: true)
+                } else {
+                    StatusLine(ok: false, text: "No API key yet.")
+                }
+            }
+        } header: {
+            Text("Claude API")
+        } footer: {
+            SettingsFootnote("Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys). It is kept in your Keychain and sent only to api.anthropic.com. Requests are billed to your Anthropic account.")
+        }
+    }
+
+    private func saveKey() {
+        let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+        AnthropicAPIKey.save(key)
+        storedKey = AnthropicAPIKey.value
+        keyDraft = ""
+        testResult = nil
+    }
+
+    private var cliSection: some View {
+        Section {
+            LabeledContent("Claude CLI") {
+                HStack(spacing: DS.Space.s) {
+                    TextField("Claude CLI", text: $claudePath, prompt: Text(detected ?? "Auto-detect"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.leading)
+                        .font(DS.Typo.mono)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Browse…", action: browse).fixedSize()
+                    Button("Detect", action: detect).disabled(detecting).fixedSize()
+                }
+            }
+            LabeledContent("Status") { cliStatus }
+        } header: {
+            Text("Claude Code")
+        } footer: {
+            SettingsFootnote("The assistant runs your local `claude` CLI with your Claude Code login (no API key), without saving sessions.")
+        }
     }
 
     @ViewBuilder
@@ -121,8 +176,7 @@ public struct AISettingsView: View {
         testTask = Task {
             let start = Date()
             do {
-                let cli = try await Task.detached { try ClaudeCLI.resolved() }.value
-                let r = try await cli.ask("Reply with exactly: OK", model: model, timeout: 60)
+                let r = try await AIService.testConnection(model: model)
                 let reply = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 testResult = (true, "\(r.model ?? model) answered “\(reply.prefix(40))” in \(Fmt.duration(Date().timeIntervalSince(start)))")
             } catch {

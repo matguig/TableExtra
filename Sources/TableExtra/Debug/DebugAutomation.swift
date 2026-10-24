@@ -106,6 +106,9 @@ final class DebugAutomation {
                                       attachments: [AIAttachments.text(cols, title: t.object.qualifiedName, systemImage: "tablecells")],
                                       focus: t.object.name, autoSend: false))
             }
+        case "claudeask":
+            // Sends a question to Claude right away (a real call when the backend is configured).
+            workspace?.askClaude(AIRequest(title: "Question", prompt: arg, attachments: [], focus: "", autoSend: true))
         case "sidebarfilter":
             workspace?.sidebarFilter = arg
         case "pin":

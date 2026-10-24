@@ -44,19 +44,21 @@ let package = Package(
         ),
         .target(name: "FeatureSchemaTools", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureSchemaTools"),
         .target(name: "FeatureDataTransfer", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureDataTransfer"),
-        .target(name: "FeatureAI", dependencies: ["MTPCore", "MTPUIKit"], path: "Sources/FeatureAI"),
+        // tableextra-mcp's read-only database tools, shared with the in-app assistant (API backend).
+        .target(name: "MTPAgentTools", dependencies: ["MTPCore"], path: "Sources/MTPAgentTools"),
+        .target(name: "FeatureAI", dependencies: ["MTPCore", "MTPUIKit", "MTPAgentTools"], path: "Sources/FeatureAI"),
         .executableTarget(
             name: "TableExtra",
             dependencies: ["MTPCore", "MTPUIKit", "FeatureInsights", "FeatureSchemaTools", "FeatureDataTransfer", "FeatureAI"],
             path: "Sources/TableExtra"
         ),
-        .executableTarget(name: "tableextra-mcp", dependencies: ["MTPCore"], path: "Sources/tableextra-mcp"),
+        .executableTarget(name: "tableextra-mcp", dependencies: ["MTPCore", "MTPAgentTools"], path: "Sources/tableextra-mcp"),
         .testTarget(name: "MTPCoreTests", dependencies: ["MTPCore"], path: "Tests/MTPCoreTests"),
         .testTarget(name: "FeatureInsightsTests", dependencies: ["FeatureInsights"], path: "Tests/FeatureInsightsTests"),
         .testTarget(name: "FeatureSchemaToolsTests", dependencies: ["FeatureSchemaTools"], path: "Tests/FeatureSchemaToolsTests"),
         .testTarget(name: "FeatureDataTransferTests", dependencies: ["FeatureDataTransfer"], path: "Tests/FeatureDataTransferTests"),
-        .testTarget(name: "FeatureAITests", dependencies: ["FeatureAI"], path: "Tests/FeatureAITests"),
-        .testTarget(name: "MCPServerTests", dependencies: ["tableextra-mcp", "MTPCore"], path: "Tests/MCPServerTests", exclude: ["e2e.sh"]),
+        .testTarget(name: "FeatureAITests", dependencies: ["FeatureAI", "MTPAgentTools"], path: "Tests/FeatureAITests"),
+        .testTarget(name: "MCPServerTests", dependencies: ["tableextra-mcp", "MTPAgentTools", "MTPCore"], path: "Tests/MCPServerTests", exclude: ["e2e.sh"]),
     ],
     swiftLanguageModes: [.v5]
 )

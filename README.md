@@ -60,7 +60,7 @@ So:
 - One-click import of your TablePlus connections.
 
 ### Claude AI everywhere
-- A Claude assistant in every workspace. It uses your local [Claude Code](https://claude.com/claude-code) CLI, so it uses your own account and there are no API keys to manage.
+- A Claude assistant in every workspace. It reaches Claude either through your local [Claude Code](https://claude.com/claude-code) CLI or through the Claude API with your own key, depending on how you build the app (see [Choose how the app talks to Claude](#choose-how-the-app-talks-to-claude)).
 - "Ask Claude" menus on tables, query results, `EXPLAIN` plans, insights, the process list, the schema diff and RDS metrics.
 - Write SQL from plain English, explain or optimize queries, and describe filters in natural language.
 - Per connection, you choose whether Claude may read row data. This is off by default for staging and production; otherwise Claude only sees the schema.
@@ -80,7 +80,9 @@ So:
 - macOS 14 (Sonoma) or later, on Apple Silicon.
 - Xcode 16 or the Swift 6 toolchain.
 - Homebrew `libpq` and `libssh2`: `brew install libpq libssh2`.
-- Optional: [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`) for the AI features.
+- For the AI features, one of:
+  - [Claude Code](https://claude.com/claude-code), logged in (`claude` on your `PATH`), for the default build;
+  - an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys), for a build made with `--ai api`.
 
 ## Build and run
 
@@ -92,10 +94,37 @@ cd TableExtra
 scripts/build-app.sh            # builds build/TableExtra.app (libpq, pg_dump, pg_restore and psql bundled inside)
 open build/TableExtra.app
 
+scripts/build-app.sh --ai api   # Claude through the Claude API (your key, in the Keychain) instead of the Claude Code CLI
 scripts/build-app.sh --install  # optional: also copies the app to /Applications
 ```
 
 The script signs the app with your first "Developer ID Application" or "Apple Development" certificate, if you have one. Otherwise it uses an ad-hoc signature. Override this with `CODESIGN_IDENTITY="…"`.
+
+### Choose how the app talks to Claude
+
+The AI backend is chosen when you build the app:
+
+| Build command | Claude through | You need | Billing |
+| --- | --- | --- | --- |
+| `scripts/build-app.sh` (default) | Your local Claude Code CLI | Claude Code installed and logged in | Your Claude Code plan |
+| `scripts/build-app.sh --ai api` | The Claude API, called directly by the app | An Anthropic API key | Your Anthropic API account, per request |
+
+`AI_BACKEND=api scripts/build-app.sh` does the same as `--ai api`.
+
+**Why two builds?** The Claude Code build reuses the login you already have and needs no key, so it is the simplest choice on your own Mac. It works by running the `claude` program, which a sandboxed app can't do. Mac App Store apps must be sandboxed, so a future App Store version can only use the API build. Anthropic also asks third-party apps to use API keys rather than a Claude.ai login. The API build talks to `api.anthropic.com` directly and doesn't depend on any other program.
+
+Both builds give Claude the same abilities and the same limits. Claude can read the connection's code repository (read-only). When the connection allows it, Claude can also run read-only queries, using the same tools and audit log as `tableextra-mcp`. Claude never gets a tool that writes.
+
+**Setting up the API build:**
+
+1. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
+2. In TableExtra, open Settings → AI, paste the key and click Save. It is stored in your macOS Keychain and sent only to `api.anthropic.com`.
+3. Click Test Connection.
+4. Pick the default model: Opus 5.5, Sonnet 5.5 (the default) or Haiku 5.5.
+
+**Setting up the Claude Code build:** install Claude Code and run `claude` once in a terminal to log in. TableExtra finds the binary in the usual install locations, or you can set its path in Settings → AI.
+
+To try the other backend without rebuilding, start the app with `TABLEEXTRA_AI_BACKEND=api` or `TABLEEXTRA_AI_BACKEND=cli`.
 
 During development you can also use:
 

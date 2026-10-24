@@ -1,9 +1,14 @@
 import Foundation
 import MTPCore
 
-struct ToolResult: Sendable {
-    var text: String
-    var isError: Bool
+public struct ToolResult: Sendable {
+    public var text: String
+    public var isError: Bool
+
+    public init(text: String, isError: Bool) {
+        self.text = text
+        self.isError = isError
+    }
 
     var json: JSONValue {
         ["content": [["type": "text", "text": .string(text)]], "isError": .bool(isError)]
@@ -25,7 +30,7 @@ final class CallRecord: @unchecked Sendable {
     var rowCount: Int?
 }
 
-final class MCPTools: @unchecked Sendable {
+public final class MCPTools: @unchecked Sendable {
     static let maxRowsLimit = 5000
     static let defaultMaxRows = 200
     static let searchLimit = 200
@@ -35,25 +40,25 @@ final class MCPTools: @unchecked Sendable {
     private let lock = NSLock()
     private var _clientName: String?
 
-    init(environment: MCPEnvironment) {
+    public init(environment: MCPEnvironment) {
         self.environment = environment
         self.pool = ClientPool(secrets: environment.secrets)
     }
 
     /// MCP client name from `initialize` (e.g. "claude-code"), stored in the audit log.
-    var clientName: String? {
+    public var clientName: String? {
         get { lock.lock(); defer { lock.unlock() }; return _clientName }
         set { lock.lock(); _clientName = newValue; lock.unlock() }
     }
 
-    func shutdown() { pool.closeAll() }
+    public func shutdown() { pool.closeAll() }
 
     // MARK: Definitions
 
     static let names: [String] = ["list_connections", "list_schemas", "list_tables", "describe_table", "search_schema",
                                   "run_query", "explain_query", "execute_statement"]
 
-    static var definitions: [JSONValue] {
+    public static var definitions: [JSONValue] {
         let connection: JSONValue = ["type": "string", "description": "Connection name or id, as returned by list_connections."]
         let schema: JSONValue = ["type": "string", "description": "Schema name. Defaults to the connection's default schema (public / main)."]
         func tool(_ name: String, _ title: String, _ description: String, _ properties: [String: JSONValue], required: [String],
@@ -120,7 +125,7 @@ final class MCPTools: @unchecked Sendable {
 
     // MARK: Dispatch
 
-    func call(_ name: String, arguments: [String: JSONValue]) async -> ToolResult {
+    public func call(_ name: String, arguments: [String: JSONValue]) async -> ToolResult {
         let start = Date()
         let record = CallRecord()
         var status = "ok"
@@ -162,7 +167,7 @@ final class MCPTools: @unchecked Sendable {
             let database = c.driver == .sqlite ? (c.filePath as NSString).lastPathComponent : c.database
             history.add(connectionID: c.id, database: database, sql: sql, duration: duration, rowCount: record.rowCount,
                         error: status == "ok" ? nil : (status == "refused" ? "Refused by tableextra-mcp: \(record.outcome)" : record.outcome),
-                        source: "mcp", at: start)
+                        source: environment.historySource, at: start)
             history.flush()
         }
         return result

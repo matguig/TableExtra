@@ -1,6 +1,6 @@
 import MTPCore
 import XCTest
-@testable import tableextra_mcp
+@testable import MTPAgentTools
 
 /// In-process tests of the JSON-RPC handler. Policy checks need no database; the ones tagged
 /// "PG" run against MTP_TEST_PG="host:port:user:password:db" and leave no trace (temp tables only).

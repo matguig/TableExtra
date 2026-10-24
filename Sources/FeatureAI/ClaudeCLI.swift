@@ -42,7 +42,7 @@ public struct ProcessOutput: Sendable, Equatable {
 /// Runs the local `claude` CLI non-interactively (`-p`, JSON output, no tools, no saved session).
 /// Uses the user's Claude Code login: no API key involved.
 public struct ClaudeCLI: Sendable {
-    public static let modelAliases = ["sonnet", "opus", "haiku"]
+    public static let modelAliases = AIModels.aliases
     public static let defaultTimeout: TimeInterval = 180
 
     public let executableURL: URL

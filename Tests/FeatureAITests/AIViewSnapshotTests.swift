@@ -87,5 +87,12 @@ final class AIViewSnapshotTests: XCTestCase {
     func testSettingsSnapshots() throws {
         try snap(AISettingsView(), "ai-settings", sizes: [CGSize(width: 640, height: 560)])
         try snap(MCPSettingsView(), "mcp-settings", sizes: [CGSize(width: 640, height: 1000)])
+
+        // The `--ai api` build: API key instead of the CLI, no Claude Code buttons in MCP settings.
+        let saved = AIBackend.current
+        AIBackend.current = .api
+        defer { AIBackend.current = saved }
+        try snap(AISettingsView(), "ai-settings-api", sizes: [CGSize(width: 640, height: 560)])
+        try snap(MCPSettingsView(), "mcp-settings-api", sizes: [CGSize(width: 640, height: 1000)])
     }
 }

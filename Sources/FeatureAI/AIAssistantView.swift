@@ -52,7 +52,7 @@ public final class AIAssistantModel: ObservableObject {
     var hasEditor: Bool { bridge != nil }
 
     /// What Claude can use for this connection (shown in the panel header).
-    var access: ClaudeCLI.Access { AIService.access(for: context.connection) }
+    var access: AIAccess { AIService.access(for: context.connection) }
 
     /// Entry point for every screen: sends right away, or pre-fills the composer with the context attached.
     public func ask(_ request: AIRequest) {
@@ -218,7 +218,7 @@ public struct AIAssistantView: View {
                 Tag("CODE", color: .systemPurple, systemImage: "folder")
                     .help("Claude can read \(repo.path) (read-only)")
             }
-            if access.databaseTools != nil {
+            if access.canQuery {
                 Tag("QUERIES", color: .systemGreen, systemImage: "cylinder")
                     .help("Claude can run read-only queries on this connection and read the rows")
             } else {
@@ -283,8 +283,8 @@ public struct AIAssistantView: View {
             VStack(alignment: .leading, spacing: DS.Space.s) {
                 hint("tablecells", "Answers use the current schema")
                 if model.access.codeRepository != nil { hint("folder", "Reads your code repository") }
-                hint(model.access.databaseTools != nil ? "cylinder" : "eye.slash",
-                     model.access.databaseTools != nil ? "Can run read-only queries" : "Never sees your rows")
+                hint(model.access.canQuery ? "cylinder" : "eye.slash",
+                     model.access.canQuery ? "Can run read-only queries" : "Never sees your rows")
                 hint("hand.raised", "Never modifies your data")
             }
             .padding(.top, DS.Space.xs)
@@ -420,16 +420,16 @@ private struct ModelMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(ClaudeCLI.modelAliases, id: \.self) { alias in
+            ForEach(AIModels.aliases, id: \.self) { alias in
                 Button {
                     selection = alias
                 } label: {
-                    if alias == selection { Label(alias.capitalized, systemImage: "checkmark") } else { Text(alias.capitalized) }
+                    if alias == selection { Label(AIModels.displayName(alias), systemImage: "checkmark") } else { Text(AIModels.displayName(alias)) }
                 }
             }
         } label: {
             HStack(spacing: 3) {
-                Text(selection.capitalized).font(.system(size: 11.5, weight: .medium))
+                Text(AIModels.displayName(selection)).font(.system(size: 11.5, weight: .medium))
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 7)

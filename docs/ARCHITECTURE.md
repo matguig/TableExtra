@@ -19,9 +19,12 @@ Sources/
   FeatureDataTransfer/ export (CSV/TSV/JSON/SQL/Markdown), CSV import, pg_dump backup/restore, TablePlus import UI.
                        pg_dump, pg_restore and psql ship in Contents/Helpers (scripts/build-pg-tools.sh: PostgreSQL
                        source, no readline, one patch for older servers); .sql.gz is decompressed in-process
-  FeatureAI/           Claude assistant (via the local `claude` CLI), MCP settings
+  FeatureAI/           Claude assistant, MCP settings. Backend chosen per build (AIBackend, Info.plist TEAIBackend):
+                       the local `claude` CLI, or the Claude API (AnthropicClient + ClaudeAPIAssistant tool loop,
+                       RepoTools for the code repository, the MCP database tools in-process)
+  MTPAgentTools/       tableextra-mcp's tools, SQL guard, audit log and JSON-RPC server, shared with FeatureAI
   TableExtra/         the app: menus, welcome window, workspace window, sidebar, tabs, data/structure/query tabs
-  tableextra-mcp/     stdio MCP server exposing saved connections to Claude Code (read-only by default)
+  tableextra-mcp/     stdio MCP server exposing saved connections to Claude Code (read-only by default); main.swift only
 ```
 
 Rules:

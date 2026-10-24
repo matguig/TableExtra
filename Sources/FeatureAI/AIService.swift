@@ -64,33 +64,59 @@ public extension AIService {
         try await ask(.optimize(sql: sql, plan: plan), context: context, model: model)
     }
 
+    /// `effort` applies to the API backend only (the CLI chooses its own).
     @MainActor
     static func ask(_ task: AITask, context: WorkspaceContext, model: String? = nil, history: [AIChatTurn] = [],
-                    useTools: Bool = true) async throws -> AIAnswer {
+                    useTools: Bool = true, effort: String = "medium") async throws -> AIAnswer {
         let schemaText = await schemaContext(for: context, focus: task.focusText)
         let dialect = context.connection.driver.displayName
         let access = useTools ? access(for: context.connection) : .none
         var prompt = userPrompt(task, schemaContext: schemaText, dialect: dialect)
         if !history.isEmpty { prompt = conversation(history) + "\n\n" + prompt }
-        let system = systemPrompt(dialect: dialect) + accessPrompt(access, connection: context.connection, database: context.currentDatabase)
-        let cli = try await Task.detached { try ClaudeCLI.resolved() }.value
-        let response = try await cli.ask(prompt, model: model ?? AISettings.defaultModel, systemPrompt: system, access: access)
+        let system = systemPrompt(dialect: dialect)
+            + accessPrompt(access, connection: context.connection, database: context.currentDatabase, backend: AIBackend.current)
+        let response = try await send(prompt, model: model ?? AISettings.defaultModel, system: system, access: access, effort: effort)
         return AIAnswer(text: response.text, sql: extractSQL(from: response.text), model: response.model, durationMS: response.durationMS)
+    }
+
+    /// One prompt through this build's backend.
+    static func send(_ prompt: String, model: String, system: String?, access: AIAccess = .none, effort: String = "medium",
+                     timeout: TimeInterval = ClaudeCLI.defaultTimeout) async throws -> ClaudeResponse {
+        switch AIBackend.current {
+        case .cli:
+            let cli = try await Task.detached { try ClaudeCLI.resolved() }.value
+            return try await cli.ask(prompt, model: model, systemPrompt: system, access: cliAccess(access), timeout: timeout)
+        case .api:
+            return try await ClaudeAPIAssistant.fromKeychain().ask(prompt, model: model, systemPrompt: system ?? "", access: access, effort: effort)
+        }
+    }
+
+    /// A one-word round trip, for Settings → AI.
+    public static func testConnection(model: String) async throws -> ClaudeResponse {
+        try await send("Reply with exactly: OK", model: model, system: nil, effort: "low", timeout: 60)
     }
 
     /// What Claude may use besides the prompt: the connection's code repository and, when allowed, read-only queries.
     @MainActor
-    public static func access(for connection: ConnectionConfig) -> ClaudeCLI.Access {
-        var access = ClaudeCLI.Access(codeRepository: connection.codeRepositoryURL)
-        let binary = MCPInstaller.binaryURL()
-        if connection.effectiveClaudeCanQuery, FileManager.default.isExecutableFile(atPath: binary.path) {
+    public static func access(for connection: ConnectionConfig) -> AIAccess {
+        var access = AIAccess(codeRepository: connection.codeRepositoryURL)
+        // The CLI backend runs the database tools through the tableextra-mcp binary; the API backend in-process.
+        let toolsAvailable = AIBackend.current == .api || FileManager.default.isExecutableFile(atPath: MCPInstaller.binaryURL().path)
+        if connection.effectiveClaudeCanQuery, toolsAvailable { access.queryConnection = connection.id }
+        return access
+    }
+
+    /// The CLI flavour: database tools through a tableextra-mcp process limited to the connection.
+    static func cliAccess(_ access: AIAccess) -> ClaudeCLI.Access {
+        var cli = ClaudeCLI.Access(codeRepository: access.codeRepository)
+        if let id = access.queryConnection {
             var env: [String: String] = [:]
             for key in ["TABLEEXTRA_HOME", "MYTABLEPLUS_HOME", "PGPASSWORD", "TABLEEXTRA_MCP_NO_KEYCHAIN"] {
                 if let v = ProcessInfo.processInfo.environment[key] { env[key] = v }
             }
-            access.databaseTools = .init(serverBinary: binary, connectionID: connection.id, environment: env)
+            cli.databaseTools = .init(serverBinary: MCPInstaller.binaryURL(), connectionID: id, environment: env)
         }
-        return access
+        return cli
     }
 
     /// Previous turns, newest last, capped so long chats do not crowd out the schema.
@@ -107,21 +133,24 @@ public extension AIService {
         return "## Conversation so far\n" + lines.joined(separator: "\n\n")
     }
 
-    static func accessPrompt(_ access: ClaudeCLI.Access, connection: ConnectionConfig, database: String) -> String {
+    static func accessPrompt(_ access: AIAccess, connection: ConnectionConfig, database: String, backend: AIBackend = .cli) -> String {
         var s = ""
         if let repo = access.codeRepository {
+            let where_ = backend == .cli ? "in your working directory (\(repo.path))" : "available read-only through your tools"
+            let tools = backend == .cli ? "Read, Grep and Glob" : "list_files, grep and read_file (paths relative to the repository root)"
             s += """
 
-            The application code that uses this database is in your working directory (\(repo.path)). \
+            The application code that uses this database is \(where_). \
             When the question involves how data is used (models, migrations, Kysely/ORM types, queries, business rules), \
-            look it up with Read, Grep and Glob, and cite file paths with line numbers. You cannot edit files.
+            look it up with \(tools), and cite file paths with line numbers. You cannot edit files.
             """
         }
-        if access.databaseTools != nil {
+        if access.canQuery {
+            let tools = backend == .cli ? "the `tableextra` tools (connection \"\(connection.id.uuidString)\", database \"\(database)\")"
+                : "your database tools (database \"\(database)\")"
             s += """
 
-            You can query this database yourself, read-only, with the `tableextra` tools (connection "\(connection.id.uuidString)", \
-            database "\(database)"): list_tables, describe_table, search_schema, run_query, explain_query. \
+            You can query this database yourself, read-only, with \(tools): list_tables, describe_table, search_schema, run_query, explain_query. \
             Use run_query when the answer depends on the data; keep results small (LIMIT, aggregates). \
             Never try to modify data: propose writes in a ```sql block for the developer to review and run.
             """
